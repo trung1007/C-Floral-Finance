@@ -8,7 +8,7 @@ const DEMO_ORDERS: Order[] = [
     customer_name: 'Minh Anh',
     phone: '0988 123 456',
     product_type: 'Bó',
-    flower_price: 1250000,
+    price: 1250000,
     shipping_fee: 30000,
     total_due: 1280000,
     amount_paid: 1280000,
@@ -24,7 +24,7 @@ const DEMO_ORDERS: Order[] = [
     customer_name: 'Thu Hà',
     phone: '0912 456 789',
     product_type: 'Giỏ',
-    flower_price: 1850000,
+    price: 1850000,
     shipping_fee: 35000,
     total_due: 1885000,
     amount_paid: 1000000,
@@ -40,7 +40,7 @@ const DEMO_ORDERS: Order[] = [
     customer_name: 'Quỳnh Chi',
     phone: '0904 555 222',
     product_type: 'Lẵng',
-    flower_price: 2300000,
+    price: 2300000,
     shipping_fee: 40000,
     total_due: 2340000,
     amount_paid: 2340000,
@@ -56,7 +56,7 @@ const DEMO_ORDERS: Order[] = [
     customer_name: 'Hoàng Nam',
     phone: '0977 555 111',
     product_type: 'Bó',
-    flower_price: 780000,
+    price: 780000,
     shipping_fee: 30000,
     total_due: 810000,
     amount_paid: 0,
@@ -72,7 +72,7 @@ const DEMO_ORDERS: Order[] = [
     customer_name: 'Lan Phương',
     phone: '0968 110 220',
     product_type: 'Bình',
-    flower_price: 1560000,
+    price: 1560000,
     shipping_fee: 0,
     total_due: 1560000,
     amount_paid: 1560000,
@@ -237,7 +237,7 @@ export async function addOrder(
 ) {
   if (!supabase)
     throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
-  const total_due = input.flower_price + input.shipping_fee;
+  const total_due = input.price + input.shipping_fee;
   const { deposit, ...rest } = input;
   const { data, error } = await supabase
     .from('orders')
@@ -288,7 +288,7 @@ export async function updateOrder(id: string, input: Omit<Order, 'id' | 'total_d
   if (!supabase) throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
   const { data: current, error: readError } = await supabase.from('orders').select('amount_paid').eq('id', id).single();
   if (readError) throw readError;
-  const totalDue = input.flower_price + input.shipping_fee;
+  const totalDue = input.price + input.shipping_fee;
   const { data, error } = await supabase.from('orders').update({
     ...input,
     // total_due is a generated database column and must never be included in writes.

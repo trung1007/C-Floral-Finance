@@ -4,7 +4,7 @@
   customer_name: string;
   phone: string | null;
   product_type: string | null;
-  flower_price: number;
+  price: number;
   shipping_fee: number;
   total_due: number;
   amount_paid: number;

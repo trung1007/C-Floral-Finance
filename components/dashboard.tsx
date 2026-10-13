@@ -18,12 +18,22 @@ import { getExpenses, getOrders } from '@/lib/data';
 import { Expense, Order, money, shortDate } from '@/lib/types';
 import { isSupabaseConfigured } from '@/lib/supabase';
 const today = new Date().toISOString().slice(0, 10);
+type CashflowRange = '7d' | '30d' | 'all';
 const dayLabel = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('vi-VN', { weekday: 'short' });
+const dateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 export default function Dashboard() {
   const { version } = useApp();
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [cashflowRange, setCashflowRange] = useState<CashflowRange>('7d');
+  const [hoveredCashflow, setHoveredCashflow] = useState<string | null>(null);
+  const [hoveredCashflowType, setHoveredCashflowType] = useState<'income' | 'out' | null>(null);
   useEffect(() => {
     Promise.all([getOrders(), getExpenses()])
       .then(([o, e]) => {
@@ -42,21 +52,55 @@ export default function Dashboard() {
   const todaySpend = todayExpenses.reduce((a, e) => a + e.amount, 0);
   const owed = orders.reduce((a, o) => a + Math.max(0, o.total_due - o.amount_paid), 0);
   const latest = [...orders].sort((a, b) => b.order_date.localeCompare(a.order_date)).slice(0, 5);
-  const grouped = useMemo(
-    () =>
-      Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (6 - i));
-        const key = d.toISOString().slice(0, 10);
-        return {
-          key,
-          label: dayLabel(key),
-          income: orders.filter((o) => o.order_date === key).reduce((a, o) => a + o.amount_paid, 0),
-          out: expenses.filter((e) => e.expense_date === key).reduce((a, e) => a + e.amount, 0),
-        };
-      }),
-    [orders, expenses],
-  );
+  const grouped = useMemo(() => {
+    const orderIncome = new Map<string, number>();
+    const expenseOut = new Map<string, number>();
+    for (const order of orders) {
+      const key = cashflowRange === 'all' ? order.order_date.slice(0, 7) : order.order_date;
+      orderIncome.set(key, (orderIncome.get(key) || 0) + order.amount_paid);
+    }
+    for (const expense of expenses) {
+      const key = cashflowRange === 'all' ? expense.expense_date.slice(0, 7) : expense.expense_date;
+      expenseOut.set(key, (expenseOut.get(key) || 0) + expense.amount);
+    }
+
+    const now = new Date();
+    const keys: string[] = [];
+    if (cashflowRange === 'all') {
+      const firstRecorded = [...orders.map((o) => o.order_date), ...expenses.map((e) => e.expense_date)]
+        .sort()[0];
+      const start = firstRecorded ? new Date(`${firstRecorded.slice(0, 7)}-01T00:00:00`) : now;
+      const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 1);
+      while (cursor <= end) {
+        keys.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`);
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+    } else {
+      const dayCount = cashflowRange === '7d' ? 7 : 30;
+      for (let ago = dayCount - 1; ago >= 0; ago -= 1) {
+        const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ago);
+        keys.push(dateKey(date));
+      }
+    }
+
+    return keys.map((key) => ({
+      key,
+      label:
+        cashflowRange === 'all'
+          ? new Date(`${key}-01T00:00:00`).toLocaleDateString('vi-VN', { month: 'short', year: '2-digit' })
+          : cashflowRange === '7d'
+            ? dayLabel(key)
+            : new Date(`${key}T00:00:00`).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }),
+      detailLabel:
+        cashflowRange === 'all'
+          ? new Date(`${key}-01T00:00:00`).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
+          : new Date(`${key}T00:00:00`).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }),
+      income: orderIncome.get(key) || 0,
+      out: expenseOut.get(key) || 0,
+    }));
+  }, [orders, expenses, cashflowRange]);
+  const hoveredDay = grouped.find((d) => d.key === hoveredCashflow);
   const max = Math.max(1, ...grouped.flatMap((x) => [x.income, x.out]));
   return (
     <Page>
@@ -114,38 +158,121 @@ export default function Dashboard() {
         <section className="panel">
           <div className="panel-header">
             <div>
-              <h2 className="panel-title">Dòng tiền 7 ngày gần đây</h2>
-              <div className="panel-note">Theo ngày ghi nhận đơn và khoản chi</div>
+              <h2 className="panel-title">
+                Dòng tiền {cashflowRange === '7d' ? '7 ngày' : cashflowRange === '30d' ? '30 ngày' : 'từ trước đến nay'}
+              </h2>
+              <div className="panel-note">
+                {cashflowRange === 'all' ? 'Theo tháng ghi nhận đơn và khoản chi' : 'Theo ngày ghi nhận đơn và khoản chi'}
+              </div>
             </div>
-            <div className="legend">
-              <span>
-                <i className="legend-dot" />
-                Thực thu
-              </span>
-              <span>
-                <i className="legend-dot coral" />
-                Chi phí
-              </span>
+            <div className="cashflow-controls">
+              <select
+                className="filter-select"
+                aria-label="Khoảng thời gian dòng tiền"
+                value={cashflowRange}
+                onChange={(event) => {
+                  setCashflowRange(event.target.value as CashflowRange);
+                  setHoveredCashflow(null);
+                    setHoveredCashflowType(null);
+                }}
+              >
+                <option value="7d">7 ngày gần đây</option>
+                <option value="30d">30 ngày gần đây</option>
+                <option value="all">Từ trước đến nay</option>
+              </select>
+              <div className="legend">
+                <span>
+                  <i className="legend-dot" />
+                  Thực thu
+                </span>
+                <span>
+                  <i className="legend-dot coral" />
+                  Chi phí
+                </span>
+              </div>
             </div>
           </div>
-          <div className="chart">
-            {grouped.map((d) => (
-              <div className="chart-col" key={d.key}>
-                <div className="bars">
-                  <span
-                    title={`Thu ${money(d.income)}`}
-                    className="bar"
-                    style={{ height: `${Math.max(4, (d.income / max) * 100)}%` }}
-                  />
-                  <span
-                    title={`Chi ${money(d.out)}`}
-                    className="bar second"
-                    style={{ height: `${Math.max(4, (d.out / max) * 100)}%` }}
-                  />
+          <div className="chart-scroll">
+            <div
+              className="chart"
+              style={{ minWidth: grouped.length > 12 ? `${grouped.length * 48}px` : undefined }}
+            >
+              {grouped.map((d) => (
+                <div
+                  className="chart-col"
+                  key={d.key}
+                >
+                  <div className="bars">
+                    <span
+                      className={`bar${hoveredCashflow === d.key && hoveredCashflowType === 'income' ? ' active' : ''}`}
+                      tabIndex={0}
+                      role="img"
+                      aria-label={`${d.detailLabel}: thực thu ${money(d.income)}`}
+                      onMouseEnter={() => {
+                        setHoveredCashflow(d.key);
+                        setHoveredCashflowType('income');
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredCashflow(null);
+                        setHoveredCashflowType(null);
+                      }}
+                      onFocus={() => {
+                        setHoveredCashflow(d.key);
+                        setHoveredCashflowType('income');
+                      }}
+                      onBlur={() => {
+                        setHoveredCashflow(null);
+                        setHoveredCashflowType(null);
+                      }}
+                      style={{ height: `${Math.max(4, (d.income / max) * 100)}%` }}
+                    />
+                    <span
+                      className={`bar second${hoveredCashflow === d.key && hoveredCashflowType === 'out' ? ' active' : ''}`}
+                      tabIndex={0}
+                      role="img"
+                      aria-label={`${d.detailLabel}: chi phí ${money(d.out)}`}
+                      onMouseEnter={() => {
+                        setHoveredCashflow(d.key);
+                        setHoveredCashflowType('out');
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredCashflow(null);
+                        setHoveredCashflowType(null);
+                      }}
+                      onFocus={() => {
+                        setHoveredCashflow(d.key);
+                        setHoveredCashflowType('out');
+                      }}
+                      onBlur={() => {
+                        setHoveredCashflow(null);
+                        setHoveredCashflowType(null);
+                      }}
+                      style={{ height: `${Math.max(4, (d.out / max) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="chart-label">{d.label}</span>
                 </div>
-                <span className="chart-label">{d.label}</span>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+          <div className="cashflow-detail" aria-live="polite">
+            {hoveredDay ? (
+              <>
+                <b>{hoveredDay.detailLabel}</b>
+                <span>
+                  Thực thu: <strong>{money(hoveredDay.income)}</strong>
+                </span>
+                <span>
+                  Chi phí: <strong>{money(hoveredDay.out)}</strong>
+                </span>
+                <span>
+                  {hoveredDay.income > hoveredDay.out ? 'Lãi' : hoveredDay.out > hoveredDay.income ? 'Lỗ' : 'Hòa vốn'}:{' '}
+                  <strong>{money(Math.abs(hoveredDay.income - hoveredDay.out))}</strong>
+                </span>
+              </>
+            ) : (
+              <span>Di chuột hoặc dùng phím Tab để xem chi tiết</span>
+            )}
           </div>
         </section>
         <section className="panel">

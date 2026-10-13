@@ -17,9 +17,9 @@ create table if not exists public.orders (
   customer_name text not null,
   phone text,
   product_type text check (product_type is null or product_type in ('Bó','Giỏ','Lẵng','Kệ','Bình','Khác')),
-  flower_price numeric(14,0) not null default 0 check (flower_price >= 0),
+  price numeric(14,0) not null default 0 check (price >= 0),
   shipping_fee numeric(14,0) not null default 0 check (shipping_fee >= 0),
-  total_due numeric(14,0) generated always as (flower_price + shipping_fee) stored,
+  total_due numeric(14,0) generated always as (price + shipping_fee) stored,
   amount_paid numeric(14,0) not null default 0 check (amount_paid >= 0),
   courier_cost numeric(14,0) not null default 0 check (courier_cost >= 0),
   status text not null default 'Chưa thanh toán' check (status in ('Đã thanh toán đủ','Đã cọc (chờ thu còn lại)','Chưa thanh toán','Đã hủy')),
@@ -32,6 +32,20 @@ create table if not exists public.orders (
 create index if not exists orders_order_date_idx on public.orders(order_date desc);
 create index if not exists orders_customer_name_idx on public.orders using gin(to_tsvector('simple', customer_name));
 create index if not exists orders_status_idx on public.orders(status);
+
+-- Rename the order value column for databases created with the previous schema.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'orders' and column_name = 'flower_price'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'orders' and column_name = 'price'
+  ) then
+    alter table public.orders rename column flower_price to price;
+  end if;
+end $$;
 
 create table if not exists public.order_payments (
   id uuid primary key default gen_random_uuid(),

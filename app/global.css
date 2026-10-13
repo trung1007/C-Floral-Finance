@@ -72,7 +72,7 @@ a {
   letter-spacing: 0.2px;
 }
 .brand-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
   letter-spacing: 1.3px;
@@ -80,7 +80,7 @@ a {
 .nav-caption {
   padding: 10px 13px;
   color: #a1ada7;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 1.3px;
   text-transform: uppercase;
@@ -97,7 +97,7 @@ a {
   padding: 11px 13px;
   border-radius: 13px;
   color: #71817a;
-  font-size: 14px;
+  font-size: 15px;
   transition: 0.18s;
 }
 .nav-link:hover {
@@ -131,11 +131,11 @@ a {
   color: #b85f50;
 }
 .shop-caption {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 .shop-status {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
 }
@@ -157,7 +157,7 @@ a {
   backdrop-filter: blur(14px);
 }
 .crumb {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--muted);
 }
 .crumb strong {
@@ -174,7 +174,7 @@ a {
   border-radius: 999px;
   padding: 9px 14px;
   color: #71817a;
-  font-size: 12px;
+  font-size: 14px;
 }
 .avatar {
   width: 36px;
@@ -185,7 +185,7 @@ a {
   display: grid;
   place-items: center;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 14px;
 }
 .page-content {
   max-width: 1500px;
@@ -201,20 +201,20 @@ a {
 }
 .eyebrow {
   color: var(--green);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
 }
 .page-title {
   font-family: Georgia, serif;
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 500;
   margin: 8px 0 7px;
   letter-spacing: -0.5px;
 }
 .page-subtitle {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--muted);
   margin: 0;
 }
@@ -254,7 +254,7 @@ a {
   z-index: 1;
 }
 .metric-label {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
 .metric-icon {
@@ -267,13 +267,13 @@ a {
   color: var(--metric-color, var(--green));
 }
 .metric-value {
-  font-size: 23px;
+  font-size: 27px;
   font-weight: 700;
   margin-top: 17px;
   letter-spacing: -0.5px;
 }
 .metric-foot {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 8px;
 }
@@ -289,12 +289,12 @@ a {
   margin-bottom: 18px;
 }
 .panel-title {
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
   margin: 0;
 }
 .panel-note {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 5px;
 }
@@ -302,7 +302,7 @@ a {
   border: 0;
   background: transparent;
   color: var(--green);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -326,14 +326,20 @@ a {
     #f1f5f2 55px
   );
 }
+.chart-scroll {
+  overflow-x: auto;
+}
 .chart-col {
   height: 100%;
-  flex: 1;
+  flex: 1 0 48px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
+  border-radius: 8px;
+  outline: none;
+  transition: background 150ms ease;
 }
 .bars {
   height: 175px;
@@ -348,12 +354,19 @@ a {
   border-radius: 7px 7px 2px 2px;
   min-height: 5px;
   background: #bfe8d4;
+  transition: filter 150ms ease, opacity 150ms ease;
+}
+.bar.active,
+.bar:focus-visible {
+  filter: saturate(1.35) brightness(0.92);
+  outline: 2px solid rgba(39, 134, 108, 0.55);
+  outline-offset: 2px;
 }
 .bar.second {
   background: #f6b8a9;
 }
 .chart-label {
-  font-size: 10px;
+  font-size: 12px;
   color: #96a39d;
 }
 .legend {
@@ -361,7 +374,7 @@ a {
   gap: 16px;
   align-items: center;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .legend-dot {
   display: inline-block;
@@ -373,6 +386,29 @@ a {
 }
 .legend-dot.coral {
   background: #f4a18f;
+}
+.cashflow-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.cashflow-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  min-height: 20px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.cashflow-detail b {
+  color: var(--ink);
+}
+.cashflow-detail strong {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
 }
 .expense-row {
   display: flex;
@@ -394,16 +430,16 @@ a {
   min-width: 0;
 }
 .expense-name {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
 }
 .expense-meta {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
 }
 .expense-amount {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -436,7 +472,7 @@ a {
 }
 .data-table th {
   text-align: left;
-  font-size: 10px;
+  font-size: 12px;
   color: #9aa69f;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -448,7 +484,7 @@ a {
 .data-table td {
   padding: 14px 11px;
   border-bottom: 1px solid #f1f4f2;
-  font-size: 12px;
+  font-size: 14px;
   white-space: nowrap;
 }
 .data-table tr:last-child td {
@@ -467,14 +503,14 @@ a {
   place-items: center;
   background: #e8f5ee;
   color: var(--green);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
 }
 .status {
   display: inline-flex;
   border-radius: 999px;
   padding: 6px 9px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 .status.paid {
@@ -512,7 +548,7 @@ a {
   outline: 0;
   min-width: 0;
   background: transparent;
-  font-size: 12px;
+  font-size: 14px;
   flex: 1;
   color: var(--ink);
 }
@@ -523,7 +559,7 @@ a {
   background: #fff;
   padding: 0 11px;
   color: #708078;
-  font-size: 12px;
+  font-size: 14px;
 }
 .primary-button {
   height: 42px;
@@ -532,7 +568,7 @@ a {
   padding: 0 16px;
   background: var(--green);
   color: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -553,7 +589,7 @@ a {
   padding: 0 13px;
   background: #fff;
   color: #607169;
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
 }
 .form-grid {
@@ -570,9 +606,24 @@ a {
   grid-column: 1/-1;
 }
 .field label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   color: #607169;
+}
+.form-helper-text {
+  color: #8d9992;
+  font-size: 13px;
+}
+.order-phone {
+  color: #92a098;
+  font-size: 13px;
+}
+.payment-parts-note {
+  display: block;
+  margin-top: 4px;
+  color: #a0aaa4;
+  font-size: 12px;
+  text-align: center;
 }
 .field input,
 .field select,
@@ -583,7 +634,7 @@ a {
   padding: 11px 12px;
   outline: 0;
   color: var(--ink);
-  font-size: 12px;
+  font-size: 14px;
   width: 100%;
 }
 .field textarea {
@@ -623,7 +674,7 @@ a {
 }
 .modal-title {
   font-family: Georgia, serif;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 500;
   margin: 0;
 }
@@ -646,14 +697,14 @@ a {
   text-align: center;
   color: var(--muted);
   padding: 42px 18px;
-  font-size: 13px;
+  font-size: 14px;
 }
 .notice {
   border-radius: 13px;
   background: #fff7df;
   color: #98771c;
   padding: 12px 14px;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.6;
   margin: 15px 0;
 }
@@ -665,7 +716,7 @@ a {
   color: #fff;
   padding: 13px 17px;
   border-radius: 13px;
-  font-size: 12px;
+  font-size: 14px;
   box-shadow: var(--shadow);
   z-index: 80;
 }
@@ -733,7 +784,7 @@ a {
     align-items: center;
   }
   .crumb {
-    font-size: 12px;
+    font-size: 14px;
   }
   .today-chip {
     display: none;
@@ -742,7 +793,7 @@ a {
     padding: 24px 15px 36px;
   }
   .page-title {
-    font-size: 26px;
+    font-size: 28px;
   }
   .page-heading {
     align-items: center;
@@ -758,10 +809,10 @@ a {
     padding: 15px;
   }
   .metric-value {
-    font-size: 18px;
+    font-size: 22px;
   }
   .metric-label {
-    font-size: 10px;
+    font-size: 13px;
   }
   .metric-icon {
     width: 30px;

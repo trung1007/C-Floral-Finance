@@ -238,7 +238,7 @@ function Mini({ label, val }: { label: string; val: string }) {
   return (
     <div className="metric-card">
       <div className="metric-label">{label}</div>
-      <div className="metric-value" style={{ fontSize: 20, marginTop: 12 }}>
+      <div className="metric-value" style={{ marginTop: 12 }}>
         {val}
       </div>
     </div>

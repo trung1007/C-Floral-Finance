@@ -271,7 +271,7 @@ export default function ExpensesPage() {
               </div>
               <Field label="Ghi chú" name="notes" placeholder="Thông tin thêm" defaultValue={editing?.notes || ''} key={`expense-notes-${editing?.id || 'new'}`} />
               <div className="field full">
-                <span style={{ fontSize: 10, color: '#8d9992' }}>
+                <span className="form-helper-text">
                   Khi chọn “Tiền mua hoa”, khoản chi sẽ được thống kê riêng ở trang Tổng quan.
                 </span>
               </div>
@@ -329,7 +329,7 @@ function Mini({
       style={{ '--metric-color': c, '--metric-soft': bg } as CSSProperties}
     >
       <div className="metric-label">{label}</div>
-      <div className="metric-value" style={{ fontSize: 19, marginTop: 12 }}>
+      <div className="metric-value" style={{ marginTop: 12 }}>
         {val}
       </div>
       <div className="metric-foot">{note}</div>

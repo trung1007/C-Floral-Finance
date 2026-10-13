@@ -50,7 +50,7 @@ export default function OrdersPage() {
         'Khách hàng',
         'SĐT',
         'Sản phẩm',
-        'Giá hoa',
+        'Giá trị đơn hàng',
         'Ship thu khách',
         'Tổng phải thu',
         'Đã thu',
@@ -62,7 +62,7 @@ export default function OrdersPage() {
         o.customer_name,
         o.phone || '',
         o.product_type || '',
-        o.flower_price,
+        o.price,
         o.shipping_fee,
         o.total_due,
         o.amount_paid,
@@ -95,7 +95,7 @@ export default function OrdersPage() {
         customer_name: String(f.get('customer_name')).trim(),
         phone: String(f.get('phone') || '') || null,
         product_type: String(f.get('product_type')) || null,
-        flower_price: parseMoneyInput(f.get('flower_price')),
+        price: parseMoneyInput(f.get('price')),
         shipping_fee: parseMoneyInput(f.get('shipping_fee')),
         courier_cost: parseMoneyInput(f.get('courier_cost')),
         payment_method: String(f.get('payment_method')) || null,
@@ -209,7 +209,7 @@ export default function OrdersPage() {
                 <th>Khách hàng</th>
                 <th>Ngày đặt</th>
                 <th>Sản phẩm</th>
-                <th>Giá hoa</th>
+                <th>Giá trị đơn hàng</th>
                 <th>Ship thu</th>
                 <th>Tổng phải thu</th>
                 <th>Thực thu</th>
@@ -227,7 +227,8 @@ export default function OrdersPage() {
                       <span>
                         <b>{o.customer_name}</b>
                         <span
-                          style={{ display: 'block', color: '#92a098', fontSize: 10, marginTop: 4 }}
+                          className="order-phone"
+                          style={{ display: 'block', marginTop: 4 }}
                         >
                           {o.phone || 'Chưa có SĐT'}
                         </span>
@@ -236,7 +237,7 @@ export default function OrdersPage() {
                   </td>
                   <td>{shortDate(o.order_date)}</td>
                   <td>{o.product_type || '—'}</td>
-                  <td>{money(o.flower_price)}</td>
+                  <td>{money(o.price)}</td>
                   <td>{money(o.shipping_fee)}</td>
                   <td>
                     <b>{money(o.total_due)}</b>
@@ -261,13 +262,7 @@ export default function OrdersPage() {
                     {paidParts(o.id).length > 0 && (
                       <span
                         title={`${paidParts(o.id).length} lần thu`}
-                        style={{
-                          display: 'block',
-                          color: '#a0aaa4',
-                          fontSize: 9,
-                          textAlign: 'center',
-                          marginTop: 4,
-                        }}
+                        className="payment-parts-note"
                       >
                         {paidParts(o.id).length} lần thu
                       </span>
@@ -310,7 +305,7 @@ export default function OrdersPage() {
               <Field
                 label="Tên khách hàng"
                 name="customer_name"
-                placeholder="VD: Nguyễn Minh Anh"
+                placeholder="VD: Nguyễn Văn A"
                 required
                 defaultValue={editing?.customer_name || ''}
                 key={`order-customer-${editing?.id || 'new'}`}
@@ -324,10 +319,10 @@ export default function OrdersPage() {
                   ))}
                 </select>
               </div>
-              <MoneyField label="Giá hoa (VNĐ)" name="flower_price" required defaultValue={editing ? String(editing.flower_price) : ''} key={`order-flower-${editing?.id || 'new'}`} />
-              <MoneyField label="Ship thu khách (VNĐ)" name="shipping_fee" defaultValue={editing ? String(editing.shipping_fee) : '0'} key={`order-ship-${editing?.id || 'new'}`} />
-              {!editing && <MoneyField label="Tiền đã cọc ban đầu (VNĐ)" name="deposit" defaultValue="0" />}
-              <MoneyField label="Tiền trả shipper (VNĐ)" name="courier_cost" defaultValue={editing ? String(editing.courier_cost) : '0'} key={`order-courier-${editing?.id || 'new'}`} />
+              <MoneyField label="Giá trị đơn hàng" name="price" required defaultValue={editing ? String(editing.price) : ''} key={`order-price-${editing?.id || 'new'}`} />
+              <MoneyField label="Ship thu khách" name="shipping_fee" defaultValue={editing ? String(editing.shipping_fee) : '0'} key={`order-ship-${editing?.id || 'new'}`} />
+              {!editing && <MoneyField label="Tiền đã cọc ban đầu" name="deposit" defaultValue="0" />}
+              <MoneyField label="Tiền trả shipper" name="courier_cost" defaultValue={editing ? String(editing.courier_cost) : '0'} key={`order-courier-${editing?.id || 'new'}`} />
               <div className="field">
                 <label>Hình thức thanh toán</label>
                 <select name="payment_method" defaultValue={editing?.payment_method || ''} key={`order-method-${editing?.id || 'new'}`}>
@@ -417,7 +412,7 @@ function Mini({ label, val }: { label: string; val: string }) {
   return (
     <div className="metric-card">
       <div className="metric-label">{label}</div>
-      <div className="metric-value" style={{ fontSize: 18, marginTop: 13 }}>
+      <div className="metric-value" style={{ marginTop: 13 }}>
         {val}
       </div>
     </div>
