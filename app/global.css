@@ -416,6 +416,10 @@ a {
   gap: 10px;
   margin: 16px 0;
 }
+.staff-actions {
+  display: flex;
+  gap: 6px;
+}
 .expense-icon {
   width: 34px;
   height: 34px;

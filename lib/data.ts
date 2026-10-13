@@ -329,11 +329,27 @@ export async function addStaff(input: { name: string; phone: string | null }) {
   if (error) throw error;
   return data;
 }
+export async function updateStaff(id: string, input: { name: string; phone: string | null }) {
+  if (!supabase)
+    throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { data, error } = await supabase.from('staff').update(input).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+}
+export async function deleteStaff(id: string) {
+  if (!supabase)
+    throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { error } = await supabase.from('staff').delete().eq('id', id);
+  if (error?.code === '23503') {
+    throw Error('Không thể xóa nhân sự đã có ca làm. Hãy giữ lại thông tin này để bảo toàn lịch sử chấm công.');
+  }
+  if (error) throw error;
+}
 export async function addShift(input: {
   work_date: string;
   staff_id: string;
   hours: number;
-  shift_name: string;
+  shift_name: string | null;
   notes: string;
 }) {
   if (!supabase)
@@ -341,4 +357,22 @@ export async function addShift(input: {
   const { data, error } = await supabase.from('work_shifts').insert(input).select().single();
   if (error) throw error;
   return data;
+}
+export async function updateShift(id: string, input: Omit<Shift, 'id'>) {
+  if (!supabase)
+    throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { data, error } = await supabase
+    .from('work_shifts')
+    .update(input)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+export async function deleteShift(id: string) {
+  if (!supabase)
+    throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { error } = await supabase.from('work_shifts').delete().eq('id', id);
+  if (error) throw error;
 }

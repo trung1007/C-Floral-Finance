@@ -1,9 +1,18 @@
 ﻿'use client';
 import { FormEvent, useEffect, useState } from 'react';
-import { Add } from '@mui/icons-material';
+import { Add, Delete, Edit } from '@mui/icons-material';
 import { Heading, Modal, Page } from './ui';
 import { useApp } from './providers';
-import { addShift, addStaff, getShifts, getStaff } from '@/lib/data';
+import {
+  addShift,
+  addStaff,
+  deleteShift,
+  deleteStaff,
+  getShifts,
+  getStaff,
+  updateShift,
+  updateStaff,
+} from '@/lib/data';
 import { Shift, Staff, shortDate } from '@/lib/types';
 import { isSupabaseConfigured } from '@/lib/supabase';
 const today = () => new Date().toISOString().slice(0, 10);
@@ -12,6 +21,8 @@ export default function StaffPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [modal, setModal] = useState<'staff' | 'shift' | null>(null);
+  const [editing, setEditing] = useState<Staff | null>(null);
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     Promise.all([getStaff(), getShifts()])
@@ -26,27 +37,65 @@ export default function StaffPage() {
     if (!modal) return;
     setBusy(true);
     const f = new FormData(e.currentTarget);
+    const editingStaff = editing;
+    const editingShiftRecord = editingShift;
     try {
-      if (modal === 'staff')
-        await addStaff({
+      if (modal === 'staff') {
+        const values = {
           name: String(f.get('name')),
           phone: String(f.get('phone') || '') || null,
-        });
-      else
-        await addShift({
+        };
+        if (editingStaff) await updateStaff(editingStaff.id, values);
+        else await addStaff(values);
+      } else {
+        const values = {
           work_date: String(f.get('work_date')),
           staff_id: String(f.get('staff_id')),
           hours: Number(f.get('hours')),
-          shift_name: String(f.get('shift_name')),
+          shift_name: String(f.get('shift_name') || '') || null,
           notes: String(f.get('notes') || ''),
-        });
+        };
+        if (editingShiftRecord) await updateShift(editingShiftRecord.id, values);
+        else await addShift(values);
+      }
       setModal(null);
+      setEditing(null);
+      setEditingShift(null);
       refresh();
-      toast(modal === 'staff' ? 'Đã thêm nhân sự' : 'Đã ghi nhận ca làm');
+      toast(
+        modal === 'staff'
+          ? editingStaff
+            ? 'Đã cập nhật nhân sự'
+            : 'Đã thêm nhân sự'
+          : editingShiftRecord
+            ? 'Đã cập nhật ca làm'
+            : 'Đã ghi nhận ca làm',
+      );
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể lưu dữ liệu');
     } finally {
       setBusy(false);
+    }
+  }
+  async function removeStaff(person: Staff) {
+    if (!window.confirm(`Xóa nhân sự “${person.name}”?`)) return;
+    try {
+      await deleteStaff(person.id);
+      refresh();
+      toast('Đã xóa nhân sự');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Không thể xóa nhân sự');
+    }
+  }
+  async function removeShift(shift: Shift) {
+    const staffName = staff.find((person) => person.id === shift.staff_id)?.name || 'nhân sự';
+    if (!window.confirm(`Xóa ca làm ngày ${shortDate(shift.work_date)} của ${staffName}?`)) return;
+    try {
+      await deleteShift(shift.id);
+      refresh();
+      toast('Đã xóa ca làm');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Không thể xóa ca làm');
     }
   }
   const hoursToday = shifts.filter((x) => x.work_date === today()).reduce((a, x) => a + x.hours, 0);
@@ -59,10 +108,10 @@ export default function StaffPage() {
         subtitle="Ghi nhận giờ làm theo nhân viên, ngày và ca làm."
         action={
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="secondary-button" onClick={() => setModal('staff')}>
+            <button className="secondary-button" onClick={() => { setEditing(null); setModal('staff'); }}>
               <Add fontSize="small" /> Thêm nhân sự
             </button>
-            <button className="primary-button" onClick={() => setModal('shift')}>
+            <button className="primary-button" onClick={() => { setEditing(null); setEditingShift(null); setModal('shift'); }}>
               <Add fontSize="small" /> Ghi ca làm
             </button>
           </div>
@@ -100,6 +149,24 @@ export default function StaffPage() {
                 <div className="expense-meta">{s.phone || 'Chưa có số điện thoại'}</div>
               </div>
               <span className="status paid">Đang làm</span>
+              <div className="staff-actions">
+                <button
+                  className="secondary-button"
+                  aria-label={`Sửa nhân sự ${s.name}`}
+                  title="Sửa nhân sự"
+                  onClick={() => { setEditing(s); setModal('staff'); }}
+                >
+                  <Edit fontSize="small" />
+                </button>
+                <button
+                  className="secondary-button danger-button"
+                  aria-label={`Xóa nhân sự ${s.name}`}
+                  title="Xóa nhân sự"
+                  onClick={() => removeStaff(s)}
+                >
+                  <Delete fontSize="small" />
+                </button>
+              </div>
             </div>
           ))}
           {staff.length === 0 && (
@@ -114,13 +181,14 @@ export default function StaffPage() {
             </div>
           </div>
           <div className="table-wrap">
-            <table className="data-table" style={{ minWidth: 360 }}>
+            <table className="data-table" style={{ minWidth: 500 }}>
               <thead>
                 <tr>
                   <th>Ngày</th>
                   <th>Nhân sự</th>
                   <th>Ca</th>
                   <th>Giờ</th>
+                  <th>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -134,6 +202,26 @@ export default function StaffPage() {
                       <td>
                         <b>{s.hours}</b>
                       </td>
+                      <td>
+                        <div className="staff-actions">
+                          <button
+                            className="secondary-button"
+                            aria-label="Sửa ca làm"
+                            title="Sửa ca làm"
+                            onClick={() => { setEditing(null); setEditingShift(s); setModal('shift'); }}
+                          >
+                            <Edit fontSize="small" />
+                          </button>
+                          <button
+                            className="secondary-button danger-button"
+                            aria-label="Xóa ca làm"
+                            title="Xóa ca làm"
+                            onClick={() => removeShift(s)}
+                          >
+                            <Delete fontSize="small" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -144,15 +232,23 @@ export default function StaffPage() {
       </div>
       {modal && (
         <Modal
-          title={modal === 'staff' ? 'Thêm nhân sự' : 'Ghi nhận ca làm'}
-          onClose={() => setModal(null)}
+          title={
+            modal === 'staff'
+              ? editing
+                ? 'Cập nhật nhân sự'
+                : 'Thêm nhân sự'
+              : editingShift
+                ? 'Cập nhật ca làm'
+                : 'Ghi nhận ca làm'
+          }
+          onClose={() => { setModal(null); setEditing(null); setEditingShift(null); }}
           footer={
             <>
-              <button className="secondary-button" onClick={() => setModal(null)}>
+              <button className="secondary-button" onClick={() => { setModal(null); setEditing(null); setEditingShift(null); }}>
                 Hủy
               </button>
               <button className="primary-button" type="submit" form="staff-form" disabled={busy}>
-                {busy ? 'Đang lưu…' : 'Lưu'}
+                {busy ? 'Đang lưu…' : editing || editingShift ? 'Cập nhật' : 'Lưu'}
               </button>
             </>
           }
@@ -161,14 +257,14 @@ export default function StaffPage() {
             <div className="form-grid">
               {modal === 'staff' ? (
                 <>
-                  <Field label="Tên nhân sự" name="name" required />
-                  <Field label="Số điện thoại" name="phone" />
+                  <Field label="Tên nhân sự" name="name" required defaultValue={editing?.name} />
+                  <Field label="Số điện thoại" name="phone" defaultValue={editing?.phone || ''} />
                 </>
               ) : (
                 <>
                   <div className="field">
                     <label>Nhân sự</label>
-                    <select name="staff_id" required>
+                    <select name="staff_id" required defaultValue={editingShift?.staff_id}>
                       {staff.map((x) => (
                         <option key={x.id} value={x.id}>
                           {x.name}
@@ -180,7 +276,7 @@ export default function StaffPage() {
                     label="Ngày làm"
                     name="work_date"
                     type="date"
-                    defaultValue={today()}
+                    defaultValue={editingShift?.work_date || today()}
                     required
                   />
                   <Field
@@ -189,11 +285,16 @@ export default function StaffPage() {
                     type="number"
                     min="0"
                     step="0.5"
+                    defaultValue={editingShift ? String(editingShift.hours) : undefined}
                     required
                   />
                   <div className="field">
                     <label>Ca làm</label>
-                    <select name="shift_name">
+                    <select
+                      name="shift_name"
+                      defaultValue={editingShift ? editingShift.shift_name || '' : 'Ca sáng'}
+                    >
+                      <option value="">Chưa chọn</option>
                       <option>Ca sáng</option>
                       <option>Ca chiều</option>
                       <option>Ca tối</option>
@@ -201,7 +302,7 @@ export default function StaffPage() {
                       <option>Khác</option>
                     </select>
                   </div>
-                  <Field label="Ghi chú" name="notes" />
+                  <Field label="Ghi chú" name="notes" defaultValue={editingShift?.notes || ''} />
                 </>
               )}
             </div>
