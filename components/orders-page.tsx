@@ -1,9 +1,9 @@
 ﻿'use client';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Add, Search, FileDownload, Payments } from '@mui/icons-material';
+import { Add, Search, FileDownload, Payments, Edit, Delete } from '@mui/icons-material';
 import { Heading, Modal, MoneyField, Page, Status } from './ui';
 import { useApp } from './providers';
-import { addOrder, addPayment, getOrders, getPayments } from '@/lib/data';
+import { addOrder, addPayment, deleteOrder, getOrders, getPayments, updateOrder } from '@/lib/data';
 import {
   Order,
   Payment,
@@ -23,6 +23,7 @@ export default function OrdersPage() {
   const [filter, setFilter] = useState('Tất cả trạng thái');
   const [modal, setModal] = useState(false);
   const [paymentFor, setPaymentFor] = useState<Order | null>(null);
+  const [editing, setEditing] = useState<Order | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     Promise.all([getOrders(), getPayments()])
@@ -89,7 +90,7 @@ export default function OrdersPage() {
     setBusy(true);
     const f = new FormData(e.currentTarget);
     try {
-      await addOrder({
+      const values = {
         order_date: String(f.get('order_date')),
         customer_name: String(f.get('customer_name')).trim(),
         phone: String(f.get('phone') || '') || null,
@@ -101,14 +102,29 @@ export default function OrdersPage() {
         delivery_date: String(f.get('delivery_date') || '') || null,
         notes: String(f.get('notes') || '') || null,
         deposit: parseMoneyInput(f.get('deposit')),
-      });
+      };
+      if (editing) {
+        const { deposit: _deposit, ...order } = values;
+        await updateOrder(editing.id, order);
+      } else await addOrder(values);
+      setEditing(null);
       setModal(false);
       refresh();
-      toast('Đã tạo đơn hàng');
+      toast(editing ? 'Đã cập nhật đơn hàng' : 'Đã tạo đơn hàng');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể lưu đơn hàng');
     } finally {
       setBusy(false);
+    }
+  }
+  async function removeOrder(order: Order) {
+    if (!window.confirm(`Xóa đơn hàng của ${order.customer_name}? Lịch sử thu tiền của đơn này cũng sẽ bị xóa.`)) return;
+    try {
+      await deleteOrder(order.id);
+      refresh();
+      toast('Đã xóa đơn hàng');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Không thể xóa đơn hàng');
     }
   }
   async function collect(e: FormEvent<HTMLFormElement>) {
@@ -141,7 +157,7 @@ export default function OrdersPage() {
         title="Đơn hàng"
         subtitle="Theo dõi khách hàng, tiền cọc và các khoản thu của từng đơn."
         action={
-          <button className="primary-button" onClick={() => setModal(true)}>
+          <button className="primary-button" onClick={() => { setEditing(null); setModal(true); }}>
             <Add fontSize="small" /> Tạo đơn hàng
           </button>
         }
@@ -199,7 +215,7 @@ export default function OrdersPage() {
                 <th>Thực thu</th>
                 <th>Còn nợ</th>
                 <th>Thanh toán</th>
-                <th></th>
+                <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -233,11 +249,15 @@ export default function OrdersPage() {
                     <Status status={o.status} />
                   </td>
                   <td>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     {o.amount_paid < o.total_due && (
                       <button className="secondary-button" onClick={() => setPaymentFor(o)}>
                         <Payments fontSize="small" /> Thu tiền
                       </button>
                     )}
+                    <button className="secondary-button" aria-label="Sửa đơn hàng" title="Sửa đơn hàng" onClick={() => setEditing(o)}><Edit fontSize="small" /></button>
+                    <button className="secondary-button danger-button" aria-label="Xóa đơn hàng" title="Xóa đơn hàng" onClick={() => removeOrder(o)}><Delete fontSize="small" /></button>
+                    </div>
                     {paidParts(o.id).length > 0 && (
                       <span
                         title={`${paidParts(o.id).length} lần thu`}
@@ -262,17 +282,17 @@ export default function OrdersPage() {
           )}
         </div>
       </section>
-      {modal && (
+      {(modal || editing) && (
         <Modal
-          title="Tạo đơn hàng mới"
-          onClose={() => setModal(false)}
+          title={editing ? `Sửa đơn hàng · ${editing.customer_name}` : 'Tạo đơn hàng mới'}
+          onClose={() => { setModal(false); setEditing(null); }}
           footer={
             <>
-              <button className="secondary-button" onClick={() => setModal(false)}>
+              <button className="secondary-button" onClick={() => { setModal(false); setEditing(null); }}>
                 Hủy
               </button>
               <button className="primary-button" type="submit" form="order-form" disabled={busy}>
-                {busy ? 'Đang lưu…' : 'Lưu đơn hàng'}
+                {busy ? 'Đang lưu…' : editing ? 'Cập nhật đơn hàng' : 'Lưu đơn hàng'}
               </button>
             </>
           }
@@ -283,43 +303,48 @@ export default function OrdersPage() {
                 label="Ngày đặt hàng"
                 name="order_date"
                 type="date"
-                defaultValue={today()}
+                defaultValue={editing?.order_date || today()}
                 required
+                key={`order-date-${editing?.id || 'new'}`}
               />
               <Field
                 label="Tên khách hàng"
                 name="customer_name"
                 placeholder="VD: Nguyễn Minh Anh"
                 required
+                defaultValue={editing?.customer_name || ''}
+                key={`order-customer-${editing?.id || 'new'}`}
               />
-              <Field label="Số điện thoại" name="phone" placeholder="09xx xxx xxx" />
+              <Field label="Số điện thoại" name="phone" placeholder="09xx xxx xxx" defaultValue={editing?.phone || ''} key={`order-phone-${editing?.id || 'new'}`} />
               <div className="field">
                 <label>Loại sản phẩm</label>
-                <select name="product_type">
+                <select name="product_type" defaultValue={editing?.product_type || productTypes[0]} key={`order-type-${editing?.id || 'new'}`}>
                   {productTypes.map((x) => (
                     <option key={x}>{x}</option>
                   ))}
                 </select>
               </div>
-              <MoneyField label="Giá hoa (VNĐ)" name="flower_price" required />
-              <MoneyField label="Ship thu khách (VNĐ)" name="shipping_fee" defaultValue="0" />
-              <MoneyField label="Tiền đã cọc ban đầu (VNĐ)" name="deposit" defaultValue="0" />
-              <MoneyField label="Tiền trả shipper (VNĐ)" name="courier_cost" defaultValue="0" />
+              <MoneyField label="Giá hoa (VNĐ)" name="flower_price" required defaultValue={editing ? String(editing.flower_price) : ''} key={`order-flower-${editing?.id || 'new'}`} />
+              <MoneyField label="Ship thu khách (VNĐ)" name="shipping_fee" defaultValue={editing ? String(editing.shipping_fee) : '0'} key={`order-ship-${editing?.id || 'new'}`} />
+              {!editing && <MoneyField label="Tiền đã cọc ban đầu (VNĐ)" name="deposit" defaultValue="0" />}
+              <MoneyField label="Tiền trả shipper (VNĐ)" name="courier_cost" defaultValue={editing ? String(editing.courier_cost) : '0'} key={`order-courier-${editing?.id || 'new'}`} />
               <div className="field">
                 <label>Hình thức thanh toán</label>
-                <select name="payment_method">
+                <select name="payment_method" defaultValue={editing?.payment_method || ''} key={`order-method-${editing?.id || 'new'}`}>
                   <option value="">Chưa thu tiền</option>
                   {paymentMethods.map((x) => (
                     <option key={x}>{x}</option>
                   ))}
                 </select>
               </div>
-              <Field label="Ngày giao hoa" name="delivery_date" type="date" />
+              <Field label="Ngày giao hoa" name="delivery_date" type="date" defaultValue={editing?.delivery_date || ''} key={`order-delivery-${editing?.id || 'new'}`} />
               <Field
                 label="Ghi chú đơn hàng"
                 name="notes"
                 placeholder="Mẫu hoa, giờ giao, lời chúc…"
                 full
+                defaultValue={editing?.notes || ''}
+                key={`order-notes-${editing?.id || 'new'}`}
               />
             </div>
           </form>

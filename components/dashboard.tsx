@@ -164,7 +164,7 @@ export default function Dashboard() {
               <div className="expense-info">
                 <div className="expense-name">{e.description}</div>
                 <div className="expense-meta">
-                  {e.kind === 'flower' ? 'Tiền hoa tươi' : e.category} · {shortDate(e.expense_date)}
+                  {e.kind === 'flower' ? 'Tiền mua hoa' : e.category === 'Tiền thuê mặt bằng' || e.category === 'Mặt bằng/Điện nước' ? 'Tiền thuê mặt bằng' : 'Tiền mua vật dụng'} · {shortDate(e.expense_date)}
                 </div>
               </div>
               <div className="expense-amount">{money(e.amount)}</div>

@@ -1,5 +1,6 @@
 ﻿import { supabase } from './supabase';
 import type { Expense, Order, Payment, Shift, Staff } from './types';
+import { paymentStatus } from './types';
 const DEMO_ORDERS: Order[] = [
   {
     id: 'demo-1',
@@ -271,6 +272,38 @@ export async function addExpense(input: Omit<Expense, 'id'>) {
   const { data, error } = await supabase.from('expenses').insert(input).select().single();
   if (error) throw error;
   return data;
+}
+export async function updateExpense(id: string, input: Omit<Expense, 'id'>) {
+  if (!supabase) throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { data, error } = await supabase.from('expenses').update(input).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+}
+export async function deleteExpense(id: string) {
+  if (!supabase) throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { error } = await supabase.from('expenses').delete().eq('id', id);
+  if (error) throw error;
+}
+export async function updateOrder(id: string, input: Omit<Order, 'id' | 'total_due' | 'amount_paid' | 'status'>) {
+  if (!supabase) throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { data: current, error: readError } = await supabase.from('orders').select('amount_paid').eq('id', id).single();
+  if (readError) throw readError;
+  const totalDue = input.flower_price + input.shipping_fee;
+  const { data, error } = await supabase.from('orders').update({
+    ...input,
+    // total_due is a generated database column and must never be included in writes.
+    status: paymentStatus(totalDue, current.amount_paid),
+  }).eq('id', id).select().single();
+  if (error) throw error;
+  return data;
+}
+export async function deleteOrder(id: string) {
+  if (!supabase) throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  // Remove child payments first so this works even when the database has no cascade rule.
+  const { error: paymentError } = await supabase.from('order_payments').delete().eq('order_id', id);
+  if (paymentError) throw paymentError;
+  const { error } = await supabase.from('orders').delete().eq('id', id);
+  if (error) throw error;
 }
 export async function addPayment(input: {
   order_id: string;

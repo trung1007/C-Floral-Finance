@@ -2,13 +2,12 @@
 
 import type { CSSProperties } from 'react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Add, Search, FileDownload } from '@mui/icons-material';
+import { Add, Search, FileDownload, Edit, Delete } from '@mui/icons-material';
 import { Heading, Modal, MoneyField, Page } from './ui';
 import { useApp } from './providers';
-import { addExpense, getExpenses } from '@/lib/data';
+import { addExpense, deleteExpense, getExpenses, updateExpense } from '@/lib/data';
 import {
   Expense,
-  expenseCategories,
   money,
   parseMoneyInput,
   paymentMethods,
@@ -22,6 +21,7 @@ export default function ExpensesPage() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Tất cả khoản chi');
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<Expense | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     getExpenses()
@@ -32,36 +32,31 @@ export default function ExpensesPage() {
     () =>
       items.filter(
         (x) =>
-          (filter === 'Tất cả khoản chi' ||
-            (filter === 'Tiền mua hoa' ? x.kind === 'flower' : x.kind === 'other')) &&
-          `${x.description} ${x.category || ''} ${x.payee || ''}`
+          (filter === 'Tất cả khoản chi' || expenseGroup(x) === filter) &&
+          `${x.description} ${expenseGroup(x)}`
             .toLowerCase()
             .includes(query.toLowerCase()),
       ),
     [items, query, filter],
   );
   const flower = items.filter((x) => x.kind === 'flower').reduce((a, x) => a + x.amount, 0),
-    other = items.filter((x) => x.kind === 'other').reduce((a, x) => a + x.amount, 0);
+    other = items.filter((x) => x.kind !== 'flower').reduce((a, x) => a + x.amount, 0);
   const exportCsv = () => {
     const rows = [
       [
         'Ngày',
         'Nhóm',
         'Nội dung',
-        'Phân loại',
         'Số tiền',
         'Hình thức TT',
-        'Người nhận/NCC',
         'Ghi chú',
       ],
       ...visible.map((x) => [
         x.expense_date,
-        x.kind === 'flower' ? 'Mua hoa' : 'Chi phí khác',
+        expenseGroup(x),
         x.description,
-        x.category || '',
         x.amount,
         x.payment_method || '',
-        x.payee || '',
         x.notes || '',
       ]),
     ];
@@ -84,25 +79,39 @@ export default function ExpensesPage() {
     e.preventDefault();
     setBusy(true);
     const f = new FormData(e.currentTarget);
-    const kind = String(f.get('kind')) as 'flower' | 'other';
+    const group = String(f.get('kind'));
+    const kind: Expense['kind'] = group === 'Tiền mua hoa' ? 'flower' : 'other';
     try {
-      await addExpense({
+      const expense = {
         expense_date: String(f.get('expense_date')),
         kind,
         description: String(f.get('description')),
-        category: kind === 'flower' ? 'Tiền hoa tươi' : String(f.get('category')),
+        category: group,
         amount: parseMoneyInput(f.get('amount')),
         payment_method: String(f.get('payment_method')) || null,
-        payee: String(f.get('payee') || '') || null,
+        payee: null,
         notes: String(f.get('notes') || '') || null,
-      });
+      };
+      if (editing) await updateExpense(editing.id, expense);
+      else await addExpense(expense);
+      setEditing(null);
       setModal(false);
       refresh();
-      toast('Đã lưu khoản chi');
+      toast(editing ? 'Đã cập nhật khoản chi' : 'Đã lưu khoản chi');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể lưu khoản chi');
     } finally {
       setBusy(false);
+    }
+  }
+  async function removeExpense(expense: Expense) {
+    if (!window.confirm(`Xóa khoản chi “${expense.description}” trị giá ${money(expense.amount)}?`)) return;
+    try {
+      await deleteExpense(expense.id);
+      refresh();
+      toast('Đã xóa khoản chi');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Không thể xóa khoản chi');
     }
   }
   return (
@@ -112,7 +121,7 @@ export default function ExpensesPage() {
         title="Quản lý chi phí"
         subtitle="Theo dõi riêng tiền mua hoa mỗi ngày và các khoản chi khác."
         action={
-          <button className="primary-button" onClick={() => setModal(true)}>
+          <button className="primary-button" onClick={() => { setEditing(null); setModal(true); }}>
             <Add fontSize="small" /> Thêm khoản chi
           </button>
         }
@@ -125,15 +134,15 @@ export default function ExpensesPage() {
       <div className="metric-grid" style={{ marginBottom: 18 }}>
         <Mini label="Tổng tiền mua hoa" val={money(flower)} note="Hoa tươi nhập mới" tone="green" />
         <Mini
-          label="Chi phí khác"
+          label="Tiền mua vật dụng / thuê mặt bằng"
           val={money(other)}
-          note="Vật tư, vận chuyển, mặt bằng…"
+          note="Các khoản ngoài tiền mua hoa"
           tone="coral"
         />
         <Mini
           label="Tổng chi đã ghi"
           val={money(flower + other)}
-          note="Tiền hoa + chi phí khác"
+          note="Tiền hoa + các khoản khác"
           tone="blue"
         />
         <Mini
@@ -149,7 +158,7 @@ export default function ExpensesPage() {
             <label className="search-box">
               <Search fontSize="small" color="disabled" />
               <input
-                placeholder="Tìm nội dung, nhà cung cấp…"
+                placeholder="Tìm nội dung khoản chi…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
@@ -161,7 +170,8 @@ export default function ExpensesPage() {
             >
               <option>Tất cả khoản chi</option>
               <option>Tiền mua hoa</option>
-              <option>Chi phí khác</option>
+              <option>Tiền mua vật dụng</option>
+              <option>Tiền thuê mặt bằng</option>
             </select>
           </div>
           <button className="secondary-button" onClick={exportCsv}>
@@ -175,11 +185,10 @@ export default function ExpensesPage() {
                 <th>Ngày</th>
                 <th>Nhóm</th>
                 <th>Nội dung</th>
-                <th>Phân loại</th>
                 <th>Số tiền</th>
                 <th>Hình thức TT</th>
-                <th>Người nhận / NCC</th>
                 <th>Ghi chú</th>
+                <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
@@ -188,19 +197,21 @@ export default function ExpensesPage() {
                   <td>{shortDate(x.expense_date)}</td>
                   <td>
                     <span className={`status ${x.kind === 'flower' ? 'paid' : 'deposit'}`}>
-                      {x.kind === 'flower' ? 'Mua hoa' : 'Chi khác'}
+                      {expenseGroup(x)}
                     </span>
                   </td>
                   <td>
                     <b>{x.description}</b>
                   </td>
-                  <td>{x.category || '—'}</td>
                   <td>
                     <b>{money(x.amount)}</b>
                   </td>
                   <td>{x.payment_method || '—'}</td>
-                  <td>{x.payee || '—'}</td>
                   <td>{x.notes || '—'}</td>
+                  <td><div style={{ display: 'flex', gap: 6 }}>
+                    <button className="secondary-button" aria-label="Sửa khoản chi" title="Sửa khoản chi" onClick={() => setEditing(x)}><Edit fontSize="small" /></button>
+                    <button className="secondary-button danger-button" aria-label="Xóa khoản chi" title="Xóa khoản chi" onClick={() => removeExpense(x)}><Delete fontSize="small" /></button>
+                  </div></td>
                 </tr>
               ))}
             </tbody>
@@ -208,17 +219,17 @@ export default function ExpensesPage() {
           {visible.length === 0 && <div className="empty-state">Chưa có khoản chi phù hợp.</div>}
         </div>
       </section>
-      {modal && (
+      {(modal || editing) && (
         <Modal
-          title="Thêm khoản chi"
-          onClose={() => setModal(false)}
+          title={editing ? 'Sửa khoản chi' : 'Thêm khoản chi'}
+          onClose={() => { setModal(false); setEditing(null); }}
           footer={
             <>
-              <button className="secondary-button" onClick={() => setModal(false)}>
+              <button className="secondary-button" onClick={() => { setModal(false); setEditing(null); }}>
                 Hủy
               </button>
               <button className="primary-button" type="submit" form="expense-form" disabled={busy}>
-                {busy ? 'Đang lưu…' : 'Lưu khoản chi'}
+                {busy ? 'Đang lưu…' : editing ? 'Cập nhật khoản chi' : 'Lưu khoản chi'}
               </button>
             </>
           }
@@ -229,14 +240,16 @@ export default function ExpensesPage() {
                 label="Ngày chi"
                 name="expense_date"
                 type="date"
-                defaultValue={today()}
+                defaultValue={editing?.expense_date || today()}
                 required
+                key={`expense-date-${editing?.id || 'new'}`}
               />
               <div className="field">
                 <label>Nhóm khoản chi</label>
-                <select name="kind">
-                  <option value="flower">Tiền mua hoa</option>
-                  <option value="other">Chi phí khác</option>
+                <select name="kind" defaultValue={editing ? expenseGroup(editing) : 'Tiền mua hoa'} key={`expense-kind-${editing?.id || 'new'}`}>
+                  <option value="Tiền mua hoa">Tiền mua hoa</option>
+                  <option value="Tiền mua vật dụng">Tiền mua vật dụng</option>
+                  <option value="Tiền thuê mặt bằng">Tiền thuê mặt bằng</option>
                 </select>
               </div>
               <Field
@@ -244,30 +257,19 @@ export default function ExpensesPage() {
                 name="description"
                 placeholder="VD: Hoa hồng Đà Lạt"
                 required
+                defaultValue={editing?.description || ''}
+                key={`expense-desc-${editing?.id || 'new'}`}
               />
-              <div className="field">
-                <label>Phân loại chi phí</label>
-                <select name="category">
-                  {expenseCategories.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
-              </div>
-              <MoneyField label="Số tiền (VNĐ)" name="amount" required />
+              <MoneyField label="Số tiền (VNĐ)" name="amount" required defaultValue={editing ? String(editing.amount) : ''} key={`expense-amount-${editing?.id || 'new'}`} />
               <div className="field">
                 <label>Hình thức thanh toán</label>
-                <select name="payment_method">
+                <select name="payment_method" defaultValue={editing?.payment_method || paymentMethods[0]} key={`expense-method-${editing?.id || 'new'}`}>
                   {paymentMethods.map((x) => (
                     <option key={x}>{x}</option>
                   ))}
                 </select>
               </div>
-              <Field
-                label="Người nhận / nhà cung cấp"
-                name="payee"
-                placeholder="Tên vườn hoa, cửa hàng…"
-              />
-              <Field label="Ghi chú" name="notes" placeholder="Thông tin thêm" />
+              <Field label="Ghi chú" name="notes" placeholder="Thông tin thêm" defaultValue={editing?.notes || ''} key={`expense-notes-${editing?.id || 'new'}`} />
               <div className="field full">
                 <span style={{ fontSize: 10, color: '#8d9992' }}>
                   Khi chọn “Tiền mua hoa”, khoản chi sẽ được thống kê riêng ở trang Tổng quan.
@@ -333,4 +335,11 @@ function Mini({
       <div className="metric-foot">{note}</div>
     </div>
   );
+}
+function expenseGroup(expense: Expense) {
+  if (expense.kind === 'flower') return 'Tiền mua hoa';
+  if (expense.category === 'Tiền thuê mặt bằng' || expense.category === 'Mặt bằng/Điện nước')
+    return 'Tiền thuê mặt bằng';
+  if (expense.category === 'Tiền mua vật dụng') return 'Tiền mua vật dụng';
+  return 'Tiền mua vật dụng';
 }
