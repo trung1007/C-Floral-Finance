@@ -46,6 +46,7 @@ begin
     alter table public.orders rename column flower_price to price;
   end if;
 end $$;
+notify pgrst, 'reload schema';
 
 create table if not exists public.order_payments (
   id uuid primary key default gen_random_uuid(),

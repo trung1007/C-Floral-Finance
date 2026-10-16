@@ -24,6 +24,7 @@ export default function OrdersPage() {
   const [modal, setModal] = useState(false);
   const [paymentFor, setPaymentFor] = useState<Order | null>(null);
   const [editing, setEditing] = useState<Order | null>(null);
+  const [paidOnCreate, setPaidOnCreate] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     Promise.all([getOrders(), getPayments()])
@@ -90,18 +91,29 @@ export default function OrdersPage() {
     setBusy(true);
     const f = new FormData(e.currentTarget);
     try {
+      const price = parseMoneyInput(f.get('price'));
+      const shippingFee = parseMoneyInput(f.get('shipping_fee'));
+      const paymentMethod = String(f.get('payment_method') || '') || null;
+      const isPaidOnCreate = !editing && f.get('initial_payment_status') === 'paid';
+      const totalDue = price + shippingFee;
+      if (isPaidOnCreate && totalDue <= 0) {
+        throw new Error('Giá trị đơn hàng phải lớn hơn 0 để ghi nhận đã thanh toán.');
+      }
+      if (isPaidOnCreate && !paymentMethod) {
+        throw new Error('Vui lòng chọn hình thức thanh toán.');
+      }
       const values = {
         order_date: String(f.get('order_date')),
         customer_name: String(f.get('customer_name')).trim(),
         phone: String(f.get('phone') || '') || null,
         product_type: String(f.get('product_type')) || null,
-        price: parseMoneyInput(f.get('price')),
-        shipping_fee: parseMoneyInput(f.get('shipping_fee')),
+        price,
+        shipping_fee: shippingFee,
         courier_cost: parseMoneyInput(f.get('courier_cost')),
-        payment_method: String(f.get('payment_method')) || null,
+        payment_method: paymentMethod,
         delivery_date: String(f.get('delivery_date') || '') || null,
         notes: String(f.get('notes') || '') || null,
-        deposit: parseMoneyInput(f.get('deposit')),
+        deposit: isPaidOnCreate ? totalDue : parseMoneyInput(f.get('deposit')),
       };
       if (editing) {
         const { deposit: _deposit, ...order } = values;
@@ -109,6 +121,7 @@ export default function OrdersPage() {
       } else await addOrder(values);
       setEditing(null);
       setModal(false);
+      setPaidOnCreate(false);
       refresh();
       toast(editing ? 'Đã cập nhật đơn hàng' : 'Đã tạo đơn hàng');
     } catch (err) {
@@ -157,7 +170,7 @@ export default function OrdersPage() {
         title="Đơn hàng"
         subtitle="Theo dõi khách hàng, tiền cọc và các khoản thu của từng đơn."
         action={
-          <button className="primary-button" onClick={() => { setEditing(null); setModal(true); }}>
+          <button className="primary-button" onClick={() => { setEditing(null); setPaidOnCreate(false); setModal(true); }}>
             <Add fontSize="small" /> Tạo đơn hàng
           </button>
         }
@@ -280,10 +293,10 @@ export default function OrdersPage() {
       {(modal || editing) && (
         <Modal
           title={editing ? `Sửa đơn hàng · ${editing.customer_name}` : 'Tạo đơn hàng mới'}
-          onClose={() => { setModal(false); setEditing(null); }}
+          onClose={() => { setModal(false); setEditing(null); setPaidOnCreate(false); }}
           footer={
             <>
-              <button className="secondary-button" onClick={() => { setModal(false); setEditing(null); }}>
+              <button className="secondary-button" onClick={() => { setModal(false); setEditing(null); setPaidOnCreate(false); }}>
                 Hủy
               </button>
               <button className="primary-button" type="submit" form="order-form" disabled={busy}>
@@ -307,7 +320,7 @@ export default function OrdersPage() {
                 name="customer_name"
                 placeholder="VD: Nguyễn Văn A"
                 required
-                defaultValue={editing?.customer_name || ''}
+                defaultValue={editing?.customer_name || 'Khách'}
                 key={`order-customer-${editing?.id || 'new'}`}
               />
               <Field label="Số điện thoại" name="phone" placeholder="09xx xxx xxx" defaultValue={editing?.phone || ''} key={`order-phone-${editing?.id || 'new'}`} />
@@ -321,12 +334,27 @@ export default function OrdersPage() {
               </div>
               <MoneyField label="Giá trị đơn hàng" name="price" required defaultValue={editing ? String(editing.price) : ''} key={`order-price-${editing?.id || 'new'}`} />
               <MoneyField label="Ship thu khách" name="shipping_fee" defaultValue={editing ? String(editing.shipping_fee) : '0'} key={`order-ship-${editing?.id || 'new'}`} />
-              {!editing && <MoneyField label="Tiền đã cọc ban đầu" name="deposit" defaultValue="0" />}
+              {!editing && (
+                <div className="field">
+                  <label htmlFor="initial-payment-status">Trạng thái thanh toán</label>
+                  <select
+                    id="initial-payment-status"
+                    name="initial_payment_status"
+                    value={paidOnCreate ? 'paid' : 'unpaid'}
+                    onChange={(event) => setPaidOnCreate(event.target.value === 'paid')}
+                  >
+                    <option value="unpaid">Chưa thanh toán / có thể nhập tiền cọc</option>
+                    <option value="paid">Đã thanh toán</option>
+                  </select>
+                </div>
+              )}
+              {!editing && !paidOnCreate && (
+                <MoneyField label="Tiền đã cọc ban đầu" name="deposit" defaultValue="0" />
+              )}
               <MoneyField label="Tiền trả shipper" name="courier_cost" defaultValue={editing ? String(editing.courier_cost) : '0'} key={`order-courier-${editing?.id || 'new'}`} />
               <div className="field">
                 <label>Hình thức thanh toán</label>
-                <select name="payment_method" defaultValue={editing?.payment_method || ''} key={`order-method-${editing?.id || 'new'}`}>
-                  <option value="">Chưa thu tiền</option>
+                <select name="payment_method" required={!editing && paidOnCreate} defaultValue={editing?.payment_method || paymentMethods[1]} key={`order-method-${editing?.id || 'new'}`}>
                   {paymentMethods.map((x) => (
                     <option key={x}>{x}</option>
                   ))}

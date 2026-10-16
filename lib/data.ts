@@ -260,7 +260,7 @@ export async function addOrder(
       amount: deposit,
       paid_at: new Date().toISOString(),
       payment_method: input.payment_method,
-      notes: 'Tiền cọc ban đầu',
+      notes: deposit >= total_due ? 'Thanh toán đủ khi tạo đơn' : 'Tiền cọc ban đầu',
     });
     if (result.error) throw result.error;
   }
