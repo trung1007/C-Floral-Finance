@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowDownward,
@@ -12,6 +12,11 @@ import {
   TrendingUp,
   Add,
 } from '@mui/icons-material';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import { BarChart } from '@mui/x-charts/BarChart';
 import { Heading, Page, Status } from './ui';
 import { useApp } from './providers';
 import { getExpenses, getOrders } from '@/lib/data';
@@ -32,8 +37,8 @@ export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [cashflowRange, setCashflowRange] = useState<CashflowRange>('7d');
-  const [hoveredCashflow, setHoveredCashflow] = useState<string | null>(null);
-  const [hoveredCashflowType, setHoveredCashflowType] = useState<'income' | 'out' | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(0);
   useEffect(() => {
     Promise.all([getOrders(), getExpenses()])
       .then(([o, e]) => {
@@ -42,6 +47,15 @@ export default function Dashboard() {
       })
       .catch(console.error);
   }, [version]);
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setChartWidth(Math.floor(entry.contentRect.width));
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
   const todayOrders = orders.filter((o) => o.order_date === today);
   const todayExpenses = expenses.filter((e) => e.expense_date === today);
   const allDue = orders.reduce((a, o) => a + o.total_due, 0);
@@ -100,8 +114,6 @@ export default function Dashboard() {
       out: expenseOut.get(key) || 0,
     }));
   }, [orders, expenses, cashflowRange]);
-  const hoveredDay = grouped.find((d) => d.key === hoveredCashflow);
-  const max = Math.max(1, ...grouped.flatMap((x) => [x.income, x.out]));
   return (
     <Page>
       <Heading
@@ -166,20 +178,21 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="cashflow-controls">
-              <select
-                className="filter-select"
-                aria-label="Khoảng thời gian dòng tiền"
-                value={cashflowRange}
-                onChange={(event) => {
+              <FormControl size="small" sx={{ minWidth: 190 }}>
+                <InputLabel id="cashflow-range-label">Khoảng thời gian dòng tiền</InputLabel>
+                <Select
+                  labelId="cashflow-range-label"
+                  label="Khoảng thời gian dòng tiền"
+                  value={cashflowRange}
+                  onChange={(event) => {
                   setCashflowRange(event.target.value as CashflowRange);
-                  setHoveredCashflow(null);
-                    setHoveredCashflowType(null);
-                }}
-              >
-                <option value="7d">7 ngày gần đây</option>
-                <option value="30d">30 ngày gần đây</option>
-                <option value="all">Từ trước đến nay</option>
-              </select>
+                  }}
+                >
+                  <MenuItem value="7d">7 ngày gần đây</MenuItem>
+                  <MenuItem value="30d">30 ngày gần đây</MenuItem>
+                  <MenuItem value="all">Từ trước đến nay</MenuItem>
+                </Select>
+              </FormControl>
               <div className="legend">
                 <span>
                   <i className="legend-dot" />
@@ -192,88 +205,21 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          <div className="chart-scroll">
-            <div
-              className="chart"
-              style={{ minWidth: grouped.length > 12 ? `${grouped.length * 48}px` : undefined }}
-            >
-              {grouped.map((d) => (
-                <div
-                  className="chart-col"
-                  key={d.key}
-                >
-                  <div className="bars">
-                    <span
-                      className={`bar${hoveredCashflow === d.key && hoveredCashflowType === 'income' ? ' active' : ''}`}
-                      tabIndex={0}
-                      role="img"
-                      aria-label={`${d.detailLabel}: thực thu ${money(d.income)}`}
-                      onMouseEnter={() => {
-                        setHoveredCashflow(d.key);
-                        setHoveredCashflowType('income');
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredCashflow(null);
-                        setHoveredCashflowType(null);
-                      }}
-                      onFocus={() => {
-                        setHoveredCashflow(d.key);
-                        setHoveredCashflowType('income');
-                      }}
-                      onBlur={() => {
-                        setHoveredCashflow(null);
-                        setHoveredCashflowType(null);
-                      }}
-                      style={{ height: `${Math.max(4, (d.income / max) * 100)}%` }}
-                    />
-                    <span
-                      className={`bar second${hoveredCashflow === d.key && hoveredCashflowType === 'out' ? ' active' : ''}`}
-                      tabIndex={0}
-                      role="img"
-                      aria-label={`${d.detailLabel}: chi phí ${money(d.out)}`}
-                      onMouseEnter={() => {
-                        setHoveredCashflow(d.key);
-                        setHoveredCashflowType('out');
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredCashflow(null);
-                        setHoveredCashflowType(null);
-                      }}
-                      onFocus={() => {
-                        setHoveredCashflow(d.key);
-                        setHoveredCashflowType('out');
-                      }}
-                      onBlur={() => {
-                        setHoveredCashflow(null);
-                        setHoveredCashflowType(null);
-                      }}
-                      style={{ height: `${Math.max(4, (d.out / max) * 100)}%` }}
-                    />
-                  </div>
-                  <span className="chart-label">{d.label}</span>
-                </div>
-              ))}
-            </div>
+          <div className="chart-scroll" ref={chartContainerRef}>
+            <BarChart
+              dataset={grouped}
+              xAxis={[{ scaleType: 'band', dataKey: 'label' }]}
+              series={[
+                { dataKey: 'income', label: 'Thực thu', color: '#8ed5b2', valueFormatter: (value) => money(value ?? 0) },
+                { dataKey: 'out', label: 'Chi phí', color: '#f0a895', valueFormatter: (value) => money(value ?? 0) },
+              ]}
+              width={Math.max(1, chartWidth, grouped.length * 48)}
+              height={270}
+              margin={{ top: 16, right: 16, bottom: 32, left: 16 }}
+              slotProps={{ tooltip: { trigger: 'axis' } }}
+            />
           </div>
-          <div className="cashflow-detail" aria-live="polite">
-            {hoveredDay ? (
-              <>
-                <b>{hoveredDay.detailLabel}</b>
-                <span>
-                  Thực thu: <strong>{money(hoveredDay.income)}</strong>
-                </span>
-                <span>
-                  Chi phí: <strong>{money(hoveredDay.out)}</strong>
-                </span>
-                <span>
-                  {hoveredDay.income > hoveredDay.out ? 'Lãi' : hoveredDay.out > hoveredDay.income ? 'Lỗ' : 'Hòa vốn'}:{' '}
-                  <strong>{money(Math.abs(hoveredDay.income - hoveredDay.out))}</strong>
-                </span>
-              </>
-            ) : (
-              <span>Di chuột hoặc dùng phím Tab để xem chi tiết</span>
-            )}
-          </div>
+          <div className="cashflow-detail">Di chuột lên biểu đồ để xem thực thu và chi phí theo ngày hoặc tháng.</div>
         </section>
         <section className="panel">
           <div className="panel-header">

@@ -34,6 +34,62 @@ export function MoneyField({
     </div>
   );
 }
+
+export function DateField({
+  label,
+  name,
+  value,
+  onChange,
+  defaultValue,
+  required = false,
+  className,
+}: {
+  label?: string;
+  name?: string;
+  value?: string;
+  onChange?: (isoDate: string) => void;
+  defaultValue?: string;
+  required?: boolean;
+  className?: string;
+}) {
+  const [internalValue, setInternalValue] = useState(() => toDisplayDate(defaultValue || ''));
+  const displayValue = value === undefined ? internalValue : toDisplayDate(value);
+  const handleChange = (next: string) => {
+    if (value === undefined) setInternalValue(next);
+    const isoDate = parseDisplayDate(next);
+    if (onChange && (isoDate || !next)) onChange(isoDate);
+  };
+  return (
+    <div className={className || 'field'}>
+      {label && <label htmlFor={name}>{label}</label>}
+      <input
+        id={name}
+        name={name ? `${name}_display` : undefined}
+        type="text"
+        inputMode="numeric"
+        placeholder="dd/mm/yyyy"
+        value={displayValue}
+        onChange={(event) => handleChange(event.target.value)}
+        required={required}
+      />
+      {name && <input type="hidden" name={name} value={parseDisplayDate(displayValue)} />}
+    </div>
+  );
+}
+
+function toDisplayDate(isoDate: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : isoDate;
+}
+
+function parseDisplayDate(displayDate: string) {
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(displayDate.trim());
+  if (!match) return '';
+  const [, day, month, year] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  if (date.getFullYear() !== Number(year) || date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day)) return '';
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
 export function Page({ children }: { children: ReactNode }) {
   return (
     <AppLayout>

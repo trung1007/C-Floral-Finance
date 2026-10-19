@@ -1,7 +1,15 @@
 ﻿'use client';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Add, Search, FileDownload, Payments, Edit, Delete } from '@mui/icons-material';
-import { Heading, Modal, MoneyField, Page, Status } from './ui';
+import { Add, Search, FileDownload, Payments, Edit, Delete, MoreVert } from '@mui/icons-material';
+import TextField from '@mui/material/TextField';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
+import { DateField, Heading, Modal, MoneyField, Page, Status } from './ui';
 import { useApp } from './providers';
 import { addOrder, addPayment, deleteOrder, getOrders, getPayments, updateOrder } from '@/lib/data';
 import {
@@ -21,6 +29,8 @@ export default function OrdersPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Tất cả trạng thái');
+  const [day, setDay] = useState('');
+  const [page, setPage] = useState(1);
   const [modal, setModal] = useState(false);
   const [paymentFor, setPaymentFor] = useState<Order | null>(null);
   const [editing, setEditing] = useState<Order | null>(null);
@@ -40,10 +50,13 @@ export default function OrdersPage() {
         (o) =>
           (o.customer_name.toLowerCase().includes(query.toLowerCase()) ||
             (o.phone || '').includes(query)) &&
+          (!day || o.order_date === day) &&
           (filter === 'Tất cả trạng thái' || o.status === filter),
       ),
-    [items, query, filter],
+    [items, query, filter, day],
   );
+  const pageCount = Math.ceil(visible.length / 20);
+  const paged = visible.slice((page - 1) * 20, page * 20);
   const exportCsv = () => {
     const rows = [
       [
@@ -181,35 +194,55 @@ export default function OrdersPage() {
         </div>
       )}
       <div className="metric-grid" style={{ marginBottom: 18 }}>
-        <Mini label="Tổng đơn đang theo dõi" val={String(items.length)} />
-        <Mini label="Tổng phải thu" val={money(items.reduce((a, o) => a + o.total_due, 0))} />
-        <Mini label="Đã thực thu" val={money(items.reduce((a, o) => a + o.amount_paid, 0))} />
+        {day ? (
+          <Mini label="Số đơn trong ngày" val={String(items.filter((o) => o.order_date === day).length)} />
+        ) : (
+          <Mini label="Tổng đơn đang theo dõi" val={String(items.length)} />
+        )}
+        <Mini label="Tổng phải thu" val={money(visible.reduce((a, o) => a + o.total_due, 0))} />
+        <Mini label="Đã thực thu" val={money(visible.reduce((a, o) => a + o.amount_paid, 0))} />
         <Mini
           label="Còn phải thu"
-          val={money(items.reduce((a, o) => a + Math.max(0, o.total_due - o.amount_paid), 0))}
+          val={money(visible.reduce((a, o) => a + Math.max(0, o.total_due - o.amount_paid), 0))}
         />
       </div>
       <section className="panel">
         <div className="toolbar">
           <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap' }}>
-            <label className="search-box">
-              <Search fontSize="small" color="disabled" />
-              <input
-                placeholder="Tìm theo tên khách hoặc số điện thoại"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
+            <TextField
+              label="Khách hàng/số điện thoại"
+              variant="outlined"
+              size="small"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              sx={{ minWidth: 260, '& .MuiInputBase-root': { height: 40 } }}
+            />
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <MuiDatePicker
+                label="Lọc theo ngày đặt"
+                format="DD/MM/YYYY"
+                value={day ? dayjs(day) : null}
+                onChange={(date) => setDay(date?.isValid() ? date.format('YYYY-MM-DD') : '')}
+                slotProps={{
+                  field: { clearable: true },
+                  textField: { size: 'small', sx: { width: 190, '& .MuiInputBase-root': { height: 40 } } },
+                }}
               />
-            </label>
-            <select
-              className="filter-select"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option>Tất cả trạng thái</option>
-              <option>Đã thanh toán đủ</option>
-              <option>Đã cọc (chờ thu còn lại)</option>
-              <option>Chưa thanh toán</option>
-            </select>
+            </LocalizationProvider>
+            <FormControl size="small" sx={{ minWidth: 210 }}>
+              <InputLabel id="order-status-filter-label">Trạng thái</InputLabel>
+              <Select
+                labelId="order-status-filter-label"
+                value={filter}
+                label="Trạng thái"
+                onChange={(event) => setFilter(event.target.value)}
+              >
+                <MenuItem value="Tất cả trạng thái">Tất cả trạng thái</MenuItem>
+                <MenuItem value="Đã thanh toán đủ">Đã thanh toán đủ</MenuItem>
+                <MenuItem value="Đã cọc (chờ thu còn lại)">Đã cọc (chờ thu còn lại)</MenuItem>
+                <MenuItem value="Chưa thanh toán">Chưa thanh toán</MenuItem>
+              </Select>
+            </FormControl>
           </div>
           <button className="secondary-button" onClick={exportCsv}>
             <FileDownload fontSize="small" /> Xuất CSV
@@ -228,17 +261,18 @@ export default function OrdersPage() {
                 <th>Thực thu</th>
                 <th>Còn nợ</th>
                 <th>Thanh toán</th>
+                <th>Ghi chú</th>
                 <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((o) => (
+              {paged.map((o) => (
                 <tr key={o.id}>
                   <td>
                     <div className="customer-cell">
                       <span className="customer-avatar">{o.customer_name.slice(0, 1)}</span>
                       <span>
-                        <b>{o.customer_name}</b>
+                        <b className="customer-name" title={o.customer_name}>{o.customer_name}</b>
                         <span
                           className="order-phone"
                           style={{ display: 'block', marginTop: 4 }}
@@ -262,15 +296,15 @@ export default function OrdersPage() {
                   <td>
                     <Status status={o.status} />
                   </td>
+                  <td><span className="order-note" title={o.notes || ''}>{o.notes || '—'}</span></td>
                   <td>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    {o.amount_paid < o.total_due && (
-                      <button className="secondary-button" onClick={() => setPaymentFor(o)}>
-                        <Payments fontSize="small" /> Thu tiền
-                      </button>
-                    )}
-                    <button className="secondary-button" aria-label="Sửa đơn hàng" title="Sửa đơn hàng" onClick={() => setEditing(o)}><Edit fontSize="small" /></button>
-                    <button className="secondary-button danger-button" aria-label="Xóa đơn hàng" title="Xóa đơn hàng" onClick={() => removeOrder(o)}><Delete fontSize="small" /></button>
+                    <div className="row-actions">
+                      <button className="secondary-button row-actions-trigger" aria-label="Thao tác đơn hàng" title="Thao tác đơn hàng"><MoreVert fontSize="small" /></button>
+                      <div className="row-actions-menu">
+                        {o.amount_paid < o.total_due && <button className="secondary-button" onClick={() => setPaymentFor(o)}><Payments fontSize="small" /> Thu tiền</button>}
+                        <button className="secondary-button" aria-label="Sửa đơn hàng" onClick={() => setEditing(o)}><Edit fontSize="small" /> Sửa</button>
+                        <button className="secondary-button danger-button" aria-label="Xóa đơn hàng" onClick={() => removeOrder(o)}><Delete fontSize="small" /> Xóa</button>
+                      </div>
                     </div>
                     {paidParts(o.id).length > 0 && (
                       <span
@@ -285,6 +319,11 @@ export default function OrdersPage() {
               ))}
             </tbody>
           </table>
+          {pageCount > 1 && <div className="pagination">
+            <button className="secondary-button" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>Trước</button>
+            <span>Trang {page} / {pageCount}</span>
+            <button className="secondary-button" disabled={page === pageCount} onClick={() => setPage((p) => p + 1)}>Sau</button>
+          </div>}
           {visible.length === 0 && (
             <div className="empty-state">Không tìm thấy đơn hàng phù hợp.</div>
           )}
@@ -307,14 +346,7 @@ export default function OrdersPage() {
         >
           <form id="order-form" onSubmit={submit}>
             <div className="form-grid">
-              <Field
-                label="Ngày đặt hàng"
-                name="order_date"
-                type="date"
-                defaultValue={editing?.order_date || today()}
-                required
-                key={`order-date-${editing?.id || 'new'}`}
-              />
+              <DateField label="Ngày đặt hàng" name="order_date" defaultValue={editing?.order_date || today()} required key={`order-date-${editing?.id || 'new'}`} />
               <Field
                 label="Tên khách hàng"
                 name="customer_name"
@@ -360,7 +392,7 @@ export default function OrdersPage() {
                   ))}
                 </select>
               </div>
-              <Field label="Ngày giao hoa" name="delivery_date" type="date" defaultValue={editing?.delivery_date || ''} key={`order-delivery-${editing?.id || 'new'}`} />
+              <DateField label="Ngày giao hoa" name="delivery_date" defaultValue={editing?.delivery_date || ''} key={`order-delivery-${editing?.id || 'new'}`} />
               <Field
                 label="Ghi chú đơn hàng"
                 name="notes"

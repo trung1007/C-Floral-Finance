@@ -44,7 +44,8 @@ Follow AGENTS.md and existing project conventions.
 ## Frontend
 
 - Follow App Router conventions.
-- Use Material UI for interface components.
+- Use Material UI components for UI controls, inputs, selection fields, dialogs, and charts instead of plain HTML UI tags when an equivalent MUI component exists.
+- Prefer MUI components over base HTML tags for user-facing UI; keep native HTML for semantic structure and elements without a suitable MUI equivalent.
 - Use Tailwind CSS v4 where appropriate.
 - Keep shared CSS variables in app/global.css.
 - Maintain responsive layouts.

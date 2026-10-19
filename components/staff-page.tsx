@@ -1,7 +1,7 @@
 ﻿'use client';
 import { FormEvent, useEffect, useState } from 'react';
 import { Add, Delete, Edit } from '@mui/icons-material';
-import { Heading, Modal, Page } from './ui';
+import { DateField, Heading, Modal, Page } from './ui';
 import { useApp } from './providers';
 import {
   addShift,
@@ -23,6 +23,7 @@ export default function StaffPage() {
   const [modal, setModal] = useState<'staff' | 'shift' | null>(null);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [shiftPage, setShiftPage] = useState(1);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     Promise.all([getStaff(), getShifts()])
@@ -32,6 +33,9 @@ export default function StaffPage() {
       })
       .catch((e) => toast(e.message));
   }, [version]);
+  const sortedShifts = [...shifts].sort((a, b) => b.work_date.localeCompare(a.work_date));
+  const shiftPageCount = Math.ceil(sortedShifts.length / 20);
+  const pagedShifts = sortedShifts.slice((shiftPage - 1) * 20, shiftPage * 20);
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!modal) return;
@@ -192,9 +196,7 @@ export default function StaffPage() {
                 </tr>
               </thead>
               <tbody>
-                {[...shifts]
-                  .sort((a, b) => b.work_date.localeCompare(a.work_date))
-                  .map((s) => (
+                {pagedShifts.map((s) => (
                     <tr key={s.id}>
                       <td>{shortDate(s.work_date)}</td>
                       <td>{staff.find((x) => x.id === s.staff_id)?.name || 'Nhân sự'}</td>
@@ -226,6 +228,11 @@ export default function StaffPage() {
                   ))}
               </tbody>
             </table>
+            {shiftPageCount > 1 && <div className="pagination">
+              <button className="secondary-button" disabled={shiftPage === 1} onClick={() => setShiftPage((p) => p - 1)}>Trước</button>
+              <span>Trang {shiftPage} / {shiftPageCount}</span>
+              <button className="secondary-button" disabled={shiftPage === shiftPageCount} onClick={() => setShiftPage((p) => p + 1)}>Sau</button>
+            </div>}
             {shifts.length === 0 && <div className="empty-state">Chưa ghi nhận ca làm.</div>}
           </div>
         </section>
@@ -272,13 +279,7 @@ export default function StaffPage() {
                       ))}
                     </select>
                   </div>
-                  <Field
-                    label="Ngày làm"
-                    name="work_date"
-                    type="date"
-                    defaultValue={editingShift?.work_date || today()}
-                    required
-                  />
+                  <DateField label="Ngày làm" name="work_date" defaultValue={editingShift?.work_date || today()} required />
                   <Field
                     label="Số giờ làm"
                     name="hours"
