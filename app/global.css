@@ -497,6 +497,41 @@ a {
   width: 100%;
   gap: 8px;
 }
+.icon-actions,
+.staff-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.icon-action {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background-color 0.16s, transform 0.16s;
+}
+.icon-action:hover {
+  transform: translateY(-1px);
+}
+.icon-action-pay,
+.icon-action-edit {
+  background: #e8f5ee;
+  color: var(--green-dark);
+}
+.icon-action-pay:hover,
+.icon-action-edit:hover {
+  background: #d9eee2;
+}
+.icon-action-delete {
+  background: #fff0ec;
+  color: #bd6657;
+}
+.icon-action-delete:hover {
+  background: #ffe2da;
+}
 .customer-avatar {
   height: 31px;
   width: 31px;

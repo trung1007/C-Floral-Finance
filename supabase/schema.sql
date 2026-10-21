@@ -12,6 +12,7 @@ create index if not exists customers_phone_idx on public.customers(phone);
 
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
+  code text not null unique,
   order_date date not null default current_date,
   customer_id uuid references public.customers(id) on delete set null,
   customer_name text not null,
@@ -29,6 +30,12 @@ create table if not exists public.orders (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+alter table public.orders add column if not exists code text;
+update public.orders
+set code = to_char(order_date, 'DD_MM') || '_' || regexp_replace(trim(customer_name), '\\s+', '_', 'g') || '_' || substr(id::text, 1, 8)
+where code is null;
+alter table public.orders alter column code set not null;
+create unique index if not exists orders_code_key on public.orders(code);
 create index if not exists orders_order_date_idx on public.orders(order_date desc);
 create index if not exists orders_customer_name_idx on public.orders using gin(to_tsvector('simple', customer_name));
 create index if not exists orders_status_idx on public.orders(status);

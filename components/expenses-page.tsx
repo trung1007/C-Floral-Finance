@@ -2,7 +2,14 @@
 
 import type { CSSProperties } from 'react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Add, Search, FileDownload, Edit, Delete, MoreVert } from '@mui/icons-material';
+import { Add, Search, FileDownload, Edit, Delete } from '@mui/icons-material';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
@@ -33,6 +40,8 @@ export default function ExpensesPage() {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     getExpenses()
       .then(setItems)
@@ -118,13 +127,16 @@ export default function ExpensesPage() {
     }
   }
   async function removeExpense(expense: Expense) {
-    if (!window.confirm(`Xóa khoản chi “${expense.description}” trị giá ${money(expense.amount)}?`)) return;
+    setDeleting(true);
     try {
       await deleteExpense(expense.id);
+      setDeleteTarget(null);
       refresh();
       toast('Đã xóa khoản chi');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể xóa khoản chi');
+    } finally {
+      setDeleting(false);
     }
   }
   return (
@@ -243,12 +255,9 @@ export default function ExpensesPage() {
                   </td>
                   <td>{x.payment_method || '—'}</td>
                   <td>{x.notes || '—'}</td>
-                  <td><div className="row-actions">
-                    <button className="secondary-button row-actions-trigger" aria-label="Thao tác khoản chi" title="Thao tác khoản chi"><MoreVert fontSize="small" /></button>
-                    <div className="row-actions-menu">
-                      <button className="secondary-button" aria-label="Sửa khoản chi" onClick={() => setEditing(x)}><Edit fontSize="small" /> Sửa</button>
-                      <button className="secondary-button danger-button" aria-label="Xóa khoản chi" onClick={() => removeExpense(x)}><Delete fontSize="small" /> Xóa</button>
-                    </div>
+                  <td><div className="icon-actions">
+                    <button className="icon-action icon-action-edit" aria-label="Sửa khoản chi" title="Sửa khoản chi" onClick={() => setEditing(x)}><Edit fontSize="small" /></button>
+                    <button className="icon-action icon-action-delete" aria-label="Xóa khoản chi" title="Xóa khoản chi" onClick={() => setDeleteTarget(x)}><Delete fontSize="small" /></button>
                   </div></td>
                 </tr>
               ))}
@@ -272,7 +281,7 @@ export default function ExpensesPage() {
                 Hủy
               </button>
               <button className="primary-button" type="submit" form="expense-form" disabled={busy}>
-                {busy ? 'Đang lưu…' : editing ? 'Cập nhật khoản chi' : 'Lưu khoản chi'}
+                {busy ? <><CircularProgress size={17} color="inherit" /> Đang lưu…</> : editing ? 'Cập nhật khoản chi' : 'Lưu khoản chi'}
               </button>
             </>
           }
@@ -315,6 +324,18 @@ export default function ExpensesPage() {
           </form>
         </Modal>
       )}
+      <Dialog open={deleteTarget !== null} onClose={() => !deleting && setDeleteTarget(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Xác nhận xóa khoản chi</DialogTitle>
+        <DialogContent dividers>
+          <Typography>Bạn có chắc chắn muốn xóa khoản chi <b>{deleteTarget?.description}</b> trị giá <b>{deleteTarget ? money(deleteTarget.amount) : ''}</b>?</Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleting} sx={{ color: 'var(--green-dark)', fontWeight: 700 }}>Hủy</Button>
+          <Button onClick={() => deleteTarget && removeExpense(deleteTarget)} disabled={deleting} variant="contained" sx={{ backgroundColor: '#bd6657', '&:hover': { backgroundColor: '#a95245' }, borderRadius: '12px', fontWeight: 700 }}>
+            {deleting ? <CircularProgress size={18} color="inherit" /> : 'Xóa khoản chi'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Page>
   );
 }

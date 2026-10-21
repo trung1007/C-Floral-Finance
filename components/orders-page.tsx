@@ -1,17 +1,25 @@
 ﻿'use client';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Add, Search, FileDownload, Payments, Edit, Delete, MoreVert } from '@mui/icons-material';
+import { Add, Search, FileDownload, Payments, Edit, Delete } from '@mui/icons-material';
+import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
+import Stack from '@mui/material/Stack';
 import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import { DateField, Heading, Modal, MoneyField, Page, Status } from './ui';
 import { useApp } from './providers';
-import { addOrder, addPayment, deleteOrder, getOrders, getPayments, updateOrder } from '@/lib/data';
+import { addOrder, addPayment, deleteOrder, getOrders, getOrdersByDateAndCustomer, getPayments, updateOrder } from '@/lib/data';
 import {
   Order,
   Payment,
@@ -36,6 +44,10 @@ export default function OrdersPage() {
   const [editing, setEditing] = useState<Order | null>(null);
   const [paidOnCreate, setPaidOnCreate] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [duplicateOrders, setDuplicateOrders] = useState<Order[] | null>(null);
+  const [pendingOrder, setPendingOrder] = useState<(Omit<Order, 'id' | 'code' | 'total_due' | 'amount_paid' | 'status'> & { deposit: number }) | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     Promise.all([getOrders(), getPayments()])
       .then(([o, p]) => {
@@ -60,26 +72,24 @@ export default function OrdersPage() {
   const exportCsv = () => {
     const rows = [
       [
+        'Mã đơn hàng',
         'Ngày đặt',
         'Khách hàng',
         'SĐT',
         'Sản phẩm',
         'Giá trị đơn hàng',
-        'Ship thu khách',
         'Tổng phải thu',
-        'Đã thu',
         'Còn nợ',
         'Trạng thái',
       ],
       ...visible.map((o) => [
+        o.code,
         o.order_date,
         o.customer_name,
         o.phone || '',
         o.product_type || '',
         o.price,
-        o.shipping_fee,
         o.total_due,
-        o.amount_paid,
         o.total_due - o.amount_paid,
         o.status,
       ]),
@@ -130,8 +140,21 @@ export default function OrdersPage() {
       };
       if (editing) {
         const { deposit: _deposit, ...order } = values;
-        await updateOrder(editing.id, order);
-      } else await addOrder(values);
+        await updateOrder(editing.id, { ...order, code: editing.code });
+      } else {
+        const duplicates = items.filter((order) =>
+          order.order_date === values.order_date &&
+          order.customer_name.trim().toLocaleLowerCase('vi') === values.customer_name.toLocaleLowerCase('vi'),
+        );
+        const existing = await getOrdersByDateAndCustomer(values.order_date, values.customer_name);
+        const matched = [...new Map([...duplicates, ...existing].map((order) => [order.id, order])).values()];
+        if (matched.length > 0) {
+          setPendingOrder(values);
+          setDuplicateOrders(matched);
+          return;
+        }
+        await addOrder({ ...values, code: makeOrderCode(values.order_date, values.customer_name, []) });
+      }
       setEditing(null);
       setModal(false);
       setPaidOnCreate(false);
@@ -143,14 +166,44 @@ export default function OrdersPage() {
       setBusy(false);
     }
   }
+  async function confirmDuplicateOrder() {
+    if (!pendingOrder || !duplicateOrders) return;
+    setBusy(true);
+    try {
+      const existing = await getOrdersByDateAndCustomer(pendingOrder.order_date, pendingOrder.customer_name);
+      const all = [...new Map([...items, ...duplicateOrders, ...existing].map((order) => [order.id, order])).values()];
+      await addOrder({ ...pendingOrder, code: makeOrderCode(pendingOrder.order_date, pendingOrder.customer_name, all) });
+      setDuplicateOrders(null);
+      setPendingOrder(null);
+      setEditing(null);
+      setModal(false);
+      setPaidOnCreate(false);
+      refresh();
+      toast('Đã tạo đơn hàng');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Không thể lưu đơn hàng');
+    } finally {
+      setBusy(false);
+    }
+  }
+  function cancelDuplicateOrder() {
+    setDuplicateOrders(null);
+    setPendingOrder(null);
+    setEditing(null);
+    setModal(false);
+    setPaidOnCreate(false);
+  }
   async function removeOrder(order: Order) {
-    if (!window.confirm(`Xóa đơn hàng của ${order.customer_name}? Lịch sử thu tiền của đơn này cũng sẽ bị xóa.`)) return;
+    setDeleting(true);
     try {
       await deleteOrder(order.id);
+      setDeleteTarget(null);
       refresh();
       toast('Đã xóa đơn hàng');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể xóa đơn hàng');
+    } finally {
+      setDeleting(false);
     }
   }
   async function collect(e: FormEvent<HTMLFormElement>) {
@@ -252,13 +305,12 @@ export default function OrdersPage() {
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: 130 }}>Mã đơn hàng</th>
                 <th>Khách hàng</th>
                 <th>Ngày đặt</th>
                 <th>Sản phẩm</th>
                 <th>Giá trị đơn hàng</th>
-                <th>Ship thu</th>
                 <th>Tổng phải thu</th>
-                <th>Thực thu</th>
                 <th>Còn nợ</th>
                 <th>Thanh toán</th>
                 <th>Ghi chú</th>
@@ -268,6 +320,11 @@ export default function OrdersPage() {
             <tbody>
               {paged.map((o) => (
                 <tr key={o.id}>
+                  <td style={{ maxWidth: 130 }}>
+                    <code title={o.code} style={{ display: 'block', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {o.code}
+                    </code>
+                  </td>
                   <td>
                     <div className="customer-cell">
                       <span className="customer-avatar">{o.customer_name.slice(0, 1)}</span>
@@ -285,11 +342,9 @@ export default function OrdersPage() {
                   <td>{shortDate(o.order_date)}</td>
                   <td>{o.product_type || '—'}</td>
                   <td>{money(o.price)}</td>
-                  <td>{money(o.shipping_fee)}</td>
                   <td>
                     <b>{money(o.total_due)}</b>
                   </td>
-                  <td>{money(o.amount_paid)}</td>
                   <td style={{ color: o.total_due > o.amount_paid ? '#bd6657' : '#71817a' }}>
                     {money(Math.max(0, o.total_due - o.amount_paid))}
                   </td>
@@ -298,13 +353,10 @@ export default function OrdersPage() {
                   </td>
                   <td><span className="order-note" title={o.notes || ''}>{o.notes || '—'}</span></td>
                   <td>
-                    <div className="row-actions">
-                      <button className="secondary-button row-actions-trigger" aria-label="Thao tác đơn hàng" title="Thao tác đơn hàng"><MoreVert fontSize="small" /></button>
-                      <div className="row-actions-menu">
-                        {o.amount_paid < o.total_due && <button className="secondary-button" onClick={() => setPaymentFor(o)}><Payments fontSize="small" /> Thu tiền</button>}
-                        <button className="secondary-button" aria-label="Sửa đơn hàng" onClick={() => setEditing(o)}><Edit fontSize="small" /> Sửa</button>
-                        <button className="secondary-button danger-button" aria-label="Xóa đơn hàng" onClick={() => removeOrder(o)}><Delete fontSize="small" /> Xóa</button>
-                      </div>
+                    <div className="icon-actions">
+                      {o.amount_paid < o.total_due && <button className="icon-action icon-action-pay" aria-label="Thu tiền" title="Thu tiền" onClick={() => setPaymentFor(o)}><Payments fontSize="small" /></button>}
+                      <button className="icon-action icon-action-edit" aria-label="Sửa đơn hàng" title="Sửa đơn hàng" onClick={() => setEditing(o)}><Edit fontSize="small" /></button>
+                      <button className="icon-action icon-action-delete" aria-label="Xóa đơn hàng" title="Xóa đơn hàng" onClick={() => setDeleteTarget(o)}><Delete fontSize="small" /></button>
                     </div>
                     {paidParts(o.id).length > 0 && (
                       <span
@@ -339,7 +391,7 @@ export default function OrdersPage() {
                 Hủy
               </button>
               <button className="primary-button" type="submit" form="order-form" disabled={busy}>
-                {busy ? 'Đang lưu…' : editing ? 'Cập nhật đơn hàng' : 'Lưu đơn hàng'}
+                {busy ? <><CircularProgress size={17} color="inherit" /> Đang lưu…</> : editing ? 'Cập nhật đơn hàng' : 'Lưu đơn hàng'}
               </button>
             </>
           }
@@ -415,7 +467,7 @@ export default function OrdersPage() {
                 Đóng
               </button>
               <button className="primary-button" type="submit" form="payment-form" disabled={busy}>
-                {busy ? 'Đang lưu…' : 'Lưu khoản thu'}
+                {busy ? <><CircularProgress size={17} color="inherit" /> Đang lưu…</> : 'Lưu khoản thu'}
               </button>
             </>
           }
@@ -439,8 +491,73 @@ export default function OrdersPage() {
           </form>
         </Modal>
       )}
+      <Dialog open={duplicateOrders !== null} onClose={cancelDuplicateOrder} fullWidth maxWidth="sm">
+        <DialogTitle>Đã có đơn hàng cùng khách trong ngày</DialogTitle>
+        <DialogContent dividers>
+          <Typography sx={{ mb: 2 }}>
+            Khách hàng này đã có đơn hàng. Bạn vẫn muốn tạo thêm đơn mới?
+          </Typography>
+          <Stack spacing={1.5}>
+            {duplicateOrders?.map((order) => (
+              <div key={order.id} className="panel" style={{ padding: 16 }}>
+                <Typography><b>Khách hàng:</b> {order.customer_name}</Typography>
+                <Typography><b>Ngày đặt:</b> {shortDate(order.order_date)}</Typography>
+                <Typography><b>Giá tiền:</b> {money(order.total_due)}</Typography>
+                <Typography><b>Ghi chú:</b> {order.notes?.trim() || 'Không có ghi chú'}</Typography>
+              </div>
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={cancelDuplicateOrder}
+            sx={{ color: 'var(--green-dark)', borderRadius: '12px', fontWeight: 700, px: 2 }}
+          >
+            Hủy
+          </Button>
+          <Button
+            onClick={confirmDuplicateOrder}
+            variant="contained"
+            disabled={busy}
+            sx={{
+              backgroundColor: 'var(--green)',
+              borderRadius: '13px',
+              boxShadow: '0 7px 16px rgba(39, 134, 108, 0.17)',
+              fontWeight: 700,
+              px: 2,
+              '&:hover': { backgroundColor: 'var(--green-dark)' },
+            }}
+          >
+            {busy ? <><CircularProgress size={17} color="inherit" /> Đang lưu…</> : 'Xác nhận tạo đơn'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={deleteTarget !== null} onClose={() => !deleting && setDeleteTarget(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Xác nhận xóa đơn hàng</DialogTitle>
+        <DialogContent dividers>
+          <Typography>
+            Bạn có chắc chắn muốn xóa đơn hàng của <b>{deleteTarget?.customer_name}</b>? Lịch sử thu tiền của đơn này cũng sẽ bị xóa.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleting} sx={{ color: 'var(--green-dark)', fontWeight: 700 }}>Hủy</Button>
+          <Button onClick={() => deleteTarget && removeOrder(deleteTarget)} disabled={deleting} variant="contained" sx={{ backgroundColor: '#bd6657', '&:hover': { backgroundColor: '#a95245' }, borderRadius: '12px', fontWeight: 700 }}>
+            {deleting ? <CircularProgress size={18} color="inherit" /> : 'Xóa đơn hàng'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Page>
   );
+}
+function makeOrderCode(orderDate: string, customerName: string, existing: Order[]) {
+  const [year, month, day] = orderDate.split('-');
+  const normalizedName = customerName.trim().replace(/\s+/g, '_');
+  const base = `${day}_${month}_${normalizedName}`;
+  const codes = new Set(existing.map((order) => order.code));
+  if (!codes.has(base)) return base;
+  let suffix = 1;
+  while (codes.has(`${base}_${suffix}`)) suffix += 1;
+  return `${base}_${suffix}`;
 }
 function Field(p: {
   label: string;

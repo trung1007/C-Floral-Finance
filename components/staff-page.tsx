@@ -1,6 +1,13 @@
 ﻿'use client';
 import { FormEvent, useEffect, useState } from 'react';
 import { Add, Delete, Edit } from '@mui/icons-material';
+import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import Typography from '@mui/material/Typography';
 import { DateField, Heading, Modal, Page } from './ui';
 import { useApp } from './providers';
 import {
@@ -25,6 +32,8 @@ export default function StaffPage() {
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [shiftPage, setShiftPage] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'staff'; person: Staff } | { type: 'shift'; shift: Shift } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     Promise.all([getStaff(), getShifts()])
       .then(([s, h]) => {
@@ -82,24 +91,30 @@ export default function StaffPage() {
     }
   }
   async function removeStaff(person: Staff) {
-    if (!window.confirm(`Xóa nhân sự “${person.name}”?`)) return;
+    setDeleting(true);
     try {
       await deleteStaff(person.id);
+      setDeleteTarget(null);
       refresh();
       toast('Đã xóa nhân sự');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể xóa nhân sự');
+    } finally {
+      setDeleting(false);
     }
   }
   async function removeShift(shift: Shift) {
     const staffName = staff.find((person) => person.id === shift.staff_id)?.name || 'nhân sự';
-    if (!window.confirm(`Xóa ca làm ngày ${shortDate(shift.work_date)} của ${staffName}?`)) return;
+    setDeleting(true);
     try {
       await deleteShift(shift.id);
+      setDeleteTarget(null);
       refresh();
       toast('Đã xóa ca làm');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể xóa ca làm');
+    } finally {
+      setDeleting(false);
     }
   }
   const hoursToday = shifts.filter((x) => x.work_date === today()).reduce((a, x) => a + x.hours, 0);
@@ -166,7 +181,7 @@ export default function StaffPage() {
                   className="secondary-button danger-button"
                   aria-label={`Xóa nhân sự ${s.name}`}
                   title="Xóa nhân sự"
-                  onClick={() => removeStaff(s)}
+                  onClick={() => setDeleteTarget({ type: 'staff', person: s })}
                 >
                   <Delete fontSize="small" />
                 </button>
@@ -218,7 +233,7 @@ export default function StaffPage() {
                             className="secondary-button danger-button"
                             aria-label="Xóa ca làm"
                             title="Xóa ca làm"
-                            onClick={() => removeShift(s)}
+                            onClick={() => setDeleteTarget({ type: 'shift', shift: s })}
                           >
                             <Delete fontSize="small" />
                           </button>
@@ -255,7 +270,7 @@ export default function StaffPage() {
                 Hủy
               </button>
               <button className="primary-button" type="submit" form="staff-form" disabled={busy}>
-                {busy ? 'Đang lưu…' : editing || editingShift ? 'Cập nhật' : 'Lưu'}
+                {busy ? <><CircularProgress size={17} color="inherit" /> Đang lưu…</> : editing || editingShift ? 'Cập nhật' : 'Lưu'}
               </button>
             </>
           }
@@ -310,6 +325,29 @@ export default function StaffPage() {
           </form>
         </Modal>
       )}
+      <Dialog open={deleteTarget !== null} onClose={() => !deleting && setDeleteTarget(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Xác nhận xóa</DialogTitle>
+        <DialogContent dividers>
+          <Typography>
+            {deleteTarget?.type === 'staff'
+              ? <>Bạn có chắc chắn muốn xóa nhân sự <b>{deleteTarget.person.name}</b>?</>
+              : deleteTarget?.type === 'shift'
+                ? <>Bạn có chắc chắn muốn xóa ca làm ngày <b>{shortDate(deleteTarget.shift.work_date)}</b> của <b>{staff.find((person) => person.id === deleteTarget.shift.staff_id)?.name || 'nhân sự'}</b>?</>
+                : ''}
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleting} sx={{ color: 'var(--green-dark)', fontWeight: 700 }}>Hủy</Button>
+          <Button
+            onClick={() => deleteTarget?.type === 'staff' ? removeStaff(deleteTarget.person) : deleteTarget?.type === 'shift' ? removeShift(deleteTarget.shift) : undefined}
+            disabled={deleting}
+            variant="contained"
+            sx={{ backgroundColor: '#bd6657', '&:hover': { backgroundColor: '#a95245' }, borderRadius: '12px', fontWeight: 700 }}
+          >
+            {deleting ? <CircularProgress size={18} color="inherit" /> : 'Xóa'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Page>
   );
 }

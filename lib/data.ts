@@ -4,6 +4,7 @@ import { paymentStatus } from './types';
 const DEMO_ORDERS: Order[] = [
   {
     id: 'demo-1',
+    code: '12_10_Minh_Anh',
     order_date: '2026-10-12',
     customer_name: 'Minh Anh',
     phone: '0988 123 456',
@@ -20,6 +21,7 @@ const DEMO_ORDERS: Order[] = [
   },
   {
     id: 'demo-2',
+    code: '12_10_Thu_Hà',
     order_date: '2026-10-12',
     customer_name: 'Thu Hà',
     phone: '0912 456 789',
@@ -36,6 +38,7 @@ const DEMO_ORDERS: Order[] = [
   },
   {
     id: 'demo-3',
+    code: '11_10_Quỳnh_Chi',
     order_date: '2026-10-11',
     customer_name: 'Quỳnh Chi',
     phone: '0904 555 222',
@@ -52,6 +55,7 @@ const DEMO_ORDERS: Order[] = [
   },
   {
     id: 'demo-4',
+    code: '11_10_Hoàng_Nam',
     order_date: '2026-10-11',
     customer_name: 'Hoàng Nam',
     phone: '0977 555 111',
@@ -68,6 +72,7 @@ const DEMO_ORDERS: Order[] = [
   },
   {
     id: 'demo-5',
+    code: '10_10_Lan_Phương',
     order_date: '2026-10-10',
     customer_name: 'Lan Phương',
     phone: '0968 110 220',
@@ -265,6 +270,18 @@ export async function addOrder(
     if (result.error) throw result.error;
   }
   return data;
+}
+export async function getOrdersByDateAndCustomer(orderDate: string, customerName: string): Promise<Order[]> {
+  if (!supabase)
+    throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { data, error } = await supabase
+    .from('orders')
+    .select('*')
+    .eq('order_date', orderDate)
+    .ilike('customer_name', customerName)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
 }
 export async function addExpense(input: Omit<Expense, 'id'>) {
   if (!supabase)
