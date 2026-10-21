@@ -1,7 +1,10 @@
 ﻿'use client';
 import { ReactNode, useState } from 'react';
 import { AppLayout } from './app-layout';
-import { CircularProgress } from '@mui/material';
+import { CircularProgress, TextField } from '@mui/material';
+import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import dayjs from 'dayjs';
 import { formatMoneyInput } from '@/lib/types';
 
 export function MoneyField({
@@ -18,20 +21,20 @@ export function MoneyField({
   const [value, setValue] = useState(() => formatMoneyInput(defaultValue));
 
   return (
-    <div className="field">
-      <label htmlFor={name}>{label}</label>
-      <input
+    <TextField
         id={name}
         name={name}
-        type="text"
-        inputMode="numeric"
-        autoComplete="off"
+        label={label}
+        variant="outlined"
+        size="small"
+        fullWidth
         value={value}
         onChange={(event) => setValue(formatMoneyInput(event.target.value))}
         required={required}
         placeholder="0"
+        slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'off' } }}
+        className="form-mui-input"
       />
-    </div>
   );
 }
 
@@ -52,43 +55,29 @@ export function DateField({
   required?: boolean;
   className?: string;
 }) {
-  const [internalValue, setInternalValue] = useState(() => toDisplayDate(defaultValue || ''));
-  const displayValue = value === undefined ? internalValue : toDisplayDate(value);
-  const handleChange = (next: string) => {
+  const [internalValue, setInternalValue] = useState(() => defaultValue ? dayjs(defaultValue) : null);
+  const pickerValue = value === undefined ? internalValue : value ? dayjs(value) : null;
+  const handleChange = (next: dayjs.Dayjs | null) => {
     if (value === undefined) setInternalValue(next);
-    const isoDate = parseDisplayDate(next);
-    if (onChange && (isoDate || !next)) onChange(isoDate);
+    if (onChange) onChange(next?.isValid() ? next.format('YYYY-MM-DD') : '');
   };
   return (
     <div className={className || 'field'}>
-      {label && <label htmlFor={name}>{label}</label>}
-      <input
-        id={name}
-        name={name ? `${name}_display` : undefined}
-        type="text"
-        inputMode="numeric"
-        placeholder="dd/mm/yyyy"
-        value={displayValue}
-        onChange={(event) => handleChange(event.target.value)}
-        required={required}
-      />
-      {name && <input type="hidden" name={name} value={parseDisplayDate(displayValue)} />}
+      <LocalizationProvider dateAdapter={AdapterDayjs}>
+        <MuiDatePicker
+          label={label}
+          format="DD/MM/YYYY"
+          value={pickerValue}
+          onChange={handleChange}
+          slotProps={{
+            textField: { id: name, name: name ? `${name}_display` : undefined, size: 'small', required, fullWidth: true, className: 'form-mui-input' },
+            field: { clearable: !required },
+          }}
+        />
+      </LocalizationProvider>
+      {name && <input type="hidden" name={name} value={pickerValue?.isValid() ? pickerValue.format('YYYY-MM-DD') : ''} />}
     </div>
   );
-}
-
-function toDisplayDate(isoDate: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
-  return match ? `${match[3]}/${match[2]}/${match[1]}` : isoDate;
-}
-
-function parseDisplayDate(displayDate: string) {
-  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(displayDate.trim());
-  if (!match) return '';
-  const [, day, month, year] = match;
-  const date = new Date(Number(year), Number(month) - 1, Number(day));
-  if (date.getFullYear() !== Number(year) || date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day)) return '';
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 export function Page({ children }: { children: ReactNode }) {
   return (

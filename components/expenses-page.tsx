@@ -11,6 +11,10 @@ import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
+import MuiFormControl from '@mui/material/FormControl';
+import MuiInputLabel from '@mui/material/InputLabel';
+import MuiSelect from '@mui/material/Select';
+import MuiMenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
@@ -289,13 +293,15 @@ export default function ExpensesPage() {
           <form id="expense-form" onSubmit={submit}>
             <div className="form-grid">
               <DateField label="Ngày chi" name="expense_date" defaultValue={editing?.expense_date || today()} required key={`expense-date-${editing?.id || 'new'}`} />
-              <div className="field">
-                <label>Nhóm khoản chi</label>
-                <select name="kind" defaultValue={editing ? expenseGroup(editing) : 'Tiền mua hoa'} key={`expense-kind-${editing?.id || 'new'}`}>
-                  <option value="Tiền mua hoa">Tiền mua hoa</option>
-                  <option value="Tiền mua vật dụng">Tiền mua vật dụng</option>
-                  <option value="Tiền thuê mặt bằng">Tiền thuê mặt bằng</option>
-                </select>
+                <div className="field">
+                <MuiFormControl size="small" fullWidth className="form-mui-control">
+                  <MuiInputLabel id="expense-kind-label">Nhóm khoản chi</MuiInputLabel>
+                  <MuiSelect labelId="expense-kind-label" label="Nhóm khoản chi" name="kind" defaultValue={editing ? expenseGroup(editing) : 'Tiền mua hoa'} key={`expense-kind-${editing?.id || 'new'}`}>
+                    <MuiMenuItem value="Tiền mua hoa">Tiền mua hoa</MuiMenuItem>
+                    <MuiMenuItem value="Tiền mua vật dụng">Tiền mua vật dụng</MuiMenuItem>
+                    <MuiMenuItem value="Tiền thuê mặt bằng">Tiền thuê mặt bằng</MuiMenuItem>
+                  </MuiSelect>
+                </MuiFormControl>
               </div>
               <Field
                 label="Nội dung"
@@ -307,12 +313,12 @@ export default function ExpensesPage() {
               />
               <MoneyField label="Số tiền (VNĐ)" name="amount" required defaultValue={editing ? String(editing.amount) : ''} key={`expense-amount-${editing?.id || 'new'}`} />
               <div className="field">
-                <label>Hình thức thanh toán</label>
-                <select name="payment_method" defaultValue={editing?.payment_method || paymentMethods[0]} key={`expense-method-${editing?.id || 'new'}`}>
-                  {paymentMethods.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
+                <MuiFormControl size="small" fullWidth className="form-mui-control">
+                  <MuiInputLabel id="expense-payment-method-label">Hình thức thanh toán</MuiInputLabel>
+                  <MuiSelect labelId="expense-payment-method-label" label="Hình thức thanh toán" name="payment_method" defaultValue={editing?.payment_method || paymentMethods[0]} key={`expense-method-${editing?.id || 'new'}`}>
+                    {paymentMethods.map((x) => <MuiMenuItem key={x} value={x}>{x}</MuiMenuItem>)}
+                  </MuiSelect>
+                </MuiFormControl>
               </div>
               <Field label="Ghi chú" name="notes" placeholder="Thông tin thêm" defaultValue={editing?.notes || ''} key={`expense-notes-${editing?.id || 'new'}`} />
               <div className="field full">
@@ -348,19 +354,7 @@ function Field(p: {
   min?: string | number;
   required?: boolean;
 }) {
-  return (
-    <div className="field">
-      <label>{p.label}</label>
-      <input
-        name={p.name}
-        type={p.type || 'text'}
-        placeholder={p.placeholder}
-        defaultValue={p.defaultValue}
-        min={p.min}
-        required={p.required}
-      />
-    </div>
-  );
+  return <TextField label={p.label} name={p.name} type={p.type || 'text'} placeholder={p.placeholder} defaultValue={p.defaultValue} required={p.required} size="small" fullWidth className="form-mui-input" slotProps={{ htmlInput: { min: p.min } }} />;
 }
 function Mini({
   label,

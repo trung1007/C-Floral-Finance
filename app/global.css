@@ -664,6 +664,59 @@ a {
   color: #8d9992;
   font-size: 13px;
 }
+.form-grid > .field,
+.form-grid > .MuiTextField-root,
+.form-grid > .form-mui-input {
+  min-width: 0;
+  align-self: start;
+}
+.form-grid .MuiFormControl-root.form-mui-control,
+.form-grid .MuiTextField-root.form-mui-input,
+.form-grid > .MuiTextField-root {
+  width: 100%;
+  margin: 0;
+}
+.form-grid .MuiInputBase-root,
+.form-grid .MuiOutlinedInput-root,
+.form-grid .MuiPickersInputBase-root {
+  height: 44px;
+  box-sizing: border-box;
+  border-radius: 12px !important;
+}
+.form-grid .MuiSelect-select {
+  min-height: 0 !important;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-radius: 12px !important;
+}
+.form-grid .MuiOutlinedInput-notchedOutline {
+  border-radius: 12px !important;
+}
+.form-grid .MuiInputBase-input {
+  height: auto;
+  min-height: 0;
+  box-sizing: content-box;
+}
+.form-grid .MuiFormLabel-root {
+  font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+  color: #607169;
+  font-size: 13px;
+  font-weight: 600;
+}
+.form-grid .MuiFormLabel-root.Mui-focused,
+.form-grid .MuiInputLabel-root.MuiInputLabel-shrink {
+  font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+}
+.form-grid .MuiInputLabel-root.MuiInputLabel-shrink {
+  background: #fff;
+  padding: 0 4px;
+}
+.form-grid .Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: var(--green) !important;
+}
 .order-phone {
   color: #92a098;
   font-size: 13px;
@@ -675,9 +728,9 @@ a {
   font-size: 12px;
   text-align: center;
 }
-.field input,
-.field select,
-.field textarea {
+.field > input,
+.field > select,
+.field > textarea {
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 11px;
@@ -691,9 +744,9 @@ a {
   min-height: 76px;
   resize: vertical;
 }
-.field input:focus,
-.field select:focus,
-.field textarea:focus {
+.field > input:focus,
+.field > select:focus,
+.field > textarea:focus {
   border-color: #78c7a3;
   box-shadow: 0 0 0 3px #e7f6ef;
 }

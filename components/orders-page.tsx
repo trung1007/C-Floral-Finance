@@ -14,6 +14,7 @@ import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
+import { FormControl as MuiFormControl, InputLabel as MuiInputLabel, Select as MuiSelect, MenuItem as MuiMenuItem } from '@mui/material';
 import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
@@ -409,27 +410,32 @@ export default function OrdersPage() {
               />
               <Field label="Số điện thoại" name="phone" placeholder="09xx xxx xxx" defaultValue={editing?.phone || ''} key={`order-phone-${editing?.id || 'new'}`} />
               <div className="field">
-                <label>Loại sản phẩm</label>
-                <select name="product_type" defaultValue={editing?.product_type || productTypes[0]} key={`order-type-${editing?.id || 'new'}`}>
-                  {productTypes.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
+                <MuiFormControl size="small" fullWidth className="form-mui-control">
+                  <MuiInputLabel id="order-product-type-label">Loại sản phẩm</MuiInputLabel>
+                  <MuiSelect labelId="order-product-type-label" label="Loại sản phẩm" name="product_type" defaultValue={editing?.product_type || productTypes[0]} key={`order-type-${editing?.id || 'new'}`}>
+                    {productTypes.map((x) => <MuiMenuItem key={x} value={x}>{x}</MuiMenuItem>)}
+                  </MuiSelect>
+                </MuiFormControl>
               </div>
               <MoneyField label="Giá trị đơn hàng" name="price" required defaultValue={editing ? String(editing.price) : ''} key={`order-price-${editing?.id || 'new'}`} />
               <MoneyField label="Ship thu khách" name="shipping_fee" defaultValue={editing ? String(editing.shipping_fee) : '0'} key={`order-ship-${editing?.id || 'new'}`} />
               {!editing && (
                 <div className="field">
-                  <label htmlFor="initial-payment-status">Trạng thái thanh toán</label>
-                  <select
+                  <MuiFormControl size="small" fullWidth className="form-mui-control">
+                  <MuiInputLabel id="initial-payment-status-label">Trạng thái thanh toán</MuiInputLabel>
+                  <MuiSelect
                     id="initial-payment-status"
+                    labelId="initial-payment-status-label"
+                    label="Trạng thái thanh toán"
                     name="initial_payment_status"
+                    size="small"
                     value={paidOnCreate ? 'paid' : 'unpaid'}
                     onChange={(event) => setPaidOnCreate(event.target.value === 'paid')}
                   >
-                    <option value="unpaid">Chưa thanh toán / có thể nhập tiền cọc</option>
-                    <option value="paid">Đã thanh toán</option>
-                  </select>
+                    <MuiMenuItem value="unpaid">Chưa thanh toán</MuiMenuItem>
+                    <MuiMenuItem value="paid">Đã thanh toán</MuiMenuItem>
+                  </MuiSelect>
+                  </MuiFormControl>
                 </div>
               )}
               {!editing && !paidOnCreate && (
@@ -437,12 +443,12 @@ export default function OrdersPage() {
               )}
               <MoneyField label="Tiền trả shipper" name="courier_cost" defaultValue={editing ? String(editing.courier_cost) : '0'} key={`order-courier-${editing?.id || 'new'}`} />
               <div className="field">
-                <label>Hình thức thanh toán</label>
-                <select name="payment_method" required={!editing && paidOnCreate} defaultValue={editing?.payment_method || paymentMethods[1]} key={`order-method-${editing?.id || 'new'}`}>
-                  {paymentMethods.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
+                <MuiFormControl size="small" fullWidth className="form-mui-control">
+                  <MuiInputLabel id="order-payment-method-label">Hình thức thanh toán</MuiInputLabel>
+                  <MuiSelect labelId="order-payment-method-label" label="Hình thức thanh toán" name="payment_method" required={!editing && paidOnCreate} defaultValue={editing?.payment_method || paymentMethods[1]} key={`order-method-${editing?.id || 'new'}`}>
+                    {paymentMethods.map((x) => <MuiMenuItem key={x} value={x}>{x}</MuiMenuItem>)}
+                  </MuiSelect>
+                </MuiFormControl>
               </div>
               <DateField label="Ngày giao hoa" name="delivery_date" defaultValue={editing?.delivery_date || ''} key={`order-delivery-${editing?.id || 'new'}`} />
               <Field
@@ -479,12 +485,12 @@ export default function OrdersPage() {
             <div className="form-grid">
               <MoneyField label="Số tiền khách thanh toán" name="amount" required />
               <div className="field">
-                <label>Hình thức thanh toán</label>
-                <select name="payment_method">
-                  {paymentMethods.map((x) => (
-                    <option key={x}>{x}</option>
-                  ))}
-                </select>
+                <MuiFormControl size="small" fullWidth className="form-mui-control">
+                  <MuiInputLabel id="collect-payment-method-label">Hình thức thanh toán</MuiInputLabel>
+                  <MuiSelect labelId="collect-payment-method-label" label="Hình thức thanh toán" name="payment_method" defaultValue={paymentMethods[0]}>
+                    {paymentMethods.map((x) => <MuiMenuItem key={x} value={x}>{x}</MuiMenuItem>)}
+                  </MuiSelect>
+                </MuiFormControl>
               </div>
               <Field label="Ghi chú" name="notes" placeholder="Lần thu thêm…" full />
             </div>
@@ -570,21 +576,9 @@ function Field(p: {
   required?: boolean;
   full?: boolean;
 }) {
-  return (
-    <div className={`field ${p.full ? 'full' : ''}`}>
-      <label>{p.label}</label>
-      <input
-        name={p.name}
-        type={p.type || 'text'}
-        placeholder={p.placeholder}
-        defaultValue={p.defaultValue}
-        min={p.min}
-        max={p.max}
-        required={p.required}
-      />
-    </div>
-  );
+  return <TextField className={p.full ? 'full' : undefined} label={p.label} name={p.name} type={p.type || 'text'} placeholder={p.placeholder} defaultValue={p.defaultValue} required={p.required} size="small" fullWidth variant="outlined" slotProps={{ htmlInput: { min: p.min, max: p.max } }} sx={formInputSx} />;
 }
+const formInputSx = { width: '100%', '& .MuiInputBase-root': { height: 44, borderRadius: '12px !important' }, '& .MuiOutlinedInput-root': { borderRadius: '12px !important' }, '& .MuiOutlinedInput-notchedOutline': { borderRadius: '12px !important' } };
 function Mini({ label, val }: { label: string; val: string }) {
   return (
     <div className="metric-card">

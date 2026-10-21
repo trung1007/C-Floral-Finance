@@ -8,6 +8,11 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import MuiFormControl from '@mui/material/FormControl';
+import MuiInputLabel from '@mui/material/InputLabel';
+import MuiSelect from '@mui/material/Select';
+import MuiMenuItem from '@mui/material/MenuItem';
 import { DateField, Heading, Modal, Page } from './ui';
 import { useApp } from './providers';
 import {
@@ -286,13 +291,16 @@ export default function StaffPage() {
                 <>
                   <div className="field">
                     <label>Nhân sự</label>
-                    <select name="staff_id" required defaultValue={editingShift?.staff_id}>
+                    <MuiFormControl size="small" fullWidth required className="form-mui-control">
+                    <MuiInputLabel id="shift-staff-label">Nhân sự</MuiInputLabel>
+                    <MuiSelect name="staff_id" labelId="shift-staff-label" label="Nhân sự" required defaultValue={editingShift?.staff_id || ''}>
                       {staff.map((x) => (
-                        <option key={x.id} value={x.id}>
+                        <MuiMenuItem key={x.id} value={x.id}>
                           {x.name}
-                        </option>
+                        </MuiMenuItem>
                       ))}
-                    </select>
+                    </MuiSelect>
+                    </MuiFormControl>
                   </div>
                   <DateField label="Ngày làm" name="work_date" defaultValue={editingShift?.work_date || today()} required />
                   <Field
@@ -306,17 +314,17 @@ export default function StaffPage() {
                   />
                   <div className="field">
                     <label>Ca làm</label>
-                    <select
-                      name="shift_name"
-                      defaultValue={editingShift ? editingShift.shift_name || '' : 'Ca sáng'}
-                    >
-                      <option value="">Chưa chọn</option>
-                      <option>Ca sáng</option>
-                      <option>Ca chiều</option>
-                      <option>Ca tối</option>
-                      <option>Cả ngày</option>
-                      <option>Khác</option>
-                    </select>
+                    <MuiFormControl size="small" fullWidth className="form-mui-control">
+                      <MuiInputLabel id="shift-name-label">Ca làm</MuiInputLabel>
+                      <MuiSelect name="shift_name" labelId="shift-name-label" label="Ca làm" defaultValue={editingShift ? editingShift.shift_name || '' : 'Ca sáng'}>
+                        <MuiMenuItem value="">Chưa chọn</MuiMenuItem>
+                        <MuiMenuItem value="Ca sáng">Ca sáng</MuiMenuItem>
+                        <MuiMenuItem value="Ca chiều">Ca chiều</MuiMenuItem>
+                        <MuiMenuItem value="Ca tối">Ca tối</MuiMenuItem>
+                        <MuiMenuItem value="Cả ngày">Cả ngày</MuiMenuItem>
+                        <MuiMenuItem value="Khác">Khác</MuiMenuItem>
+                      </MuiSelect>
+                    </MuiFormControl>
                   </div>
                   <Field label="Ghi chú" name="notes" defaultValue={editingShift?.notes || ''} />
                 </>
@@ -360,19 +368,7 @@ function Field(p: {
   step?: string;
   defaultValue?: string;
 }) {
-  return (
-    <div className="field">
-      <label>{p.label}</label>
-      <input
-        name={p.name}
-        type={p.type || 'text'}
-        required={p.required}
-        min={p.min}
-        step={p.step}
-        defaultValue={p.defaultValue}
-      />
-    </div>
-  );
+  return <TextField label={p.label} name={p.name} type={p.type || 'text'} required={p.required} defaultValue={p.defaultValue} size="small" fullWidth className="form-mui-input" slotProps={{ htmlInput: { min: p.min, step: p.step } }} />;
 }
 function Mini({ label, val }: { label: string; val: string }) {
   return (

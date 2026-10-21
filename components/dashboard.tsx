@@ -23,6 +23,12 @@ import { getExpenses, getOrders } from '@/lib/data';
 import { Expense, Order, money, shortDate } from '@/lib/types';
 import { isSupabaseConfigured } from '@/lib/supabase';
 const today = new Date().toISOString().slice(0, 10);
+const todayLabel = new Intl.DateTimeFormat('vi-VN', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'Asia/Ho_Chi_Minh',
+}).format(new Date());
 type CashflowRange = '7d' | '30d' | 'all';
 const dayLabel = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('vi-VN', { weekday: 'short' });
@@ -117,7 +123,7 @@ export default function Dashboard() {
   return (
     <Page>
       <Heading
-        eyebrow="Thứ Hai, 12 tháng 10"
+        eyebrow={todayLabel}
         title="Chào buổi sáng, C’Floral ✿"
         subtitle="Một ngày mới xinh đẹp để tạo nên những bó hoa thật đặc biệt."
         action={
