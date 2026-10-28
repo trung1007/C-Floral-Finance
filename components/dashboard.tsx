@@ -16,7 +16,10 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { BarChart } from '@mui/x-charts/BarChart';
+import dayjs from 'dayjs';
 import { Heading, Page, Status } from './ui';
 import { useApp } from './providers';
 import { getExpenses, getOrders } from '@/lib/data';
@@ -43,6 +46,7 @@ export default function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [cashflowRange, setCashflowRange] = useState<CashflowRange>('7d');
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [chartWidth, setChartWidth] = useState(0);
   useEffect(() => {
@@ -70,6 +74,11 @@ export default function Dashboard() {
   const flowerSpend = expenses.filter((e) => e.kind === 'flower').reduce((a, e) => a + e.amount, 0);
   const todayRevenue = todayOrders.reduce((a, o) => a + o.amount_paid, 0);
   const todaySpend = todayExpenses.reduce((a, e) => a + e.amount, 0);
+  const [selectedYear, selectedMonthNumber] = selectedMonth.split('-').map(Number);
+  const monthOrders = orders.filter((o) => o.order_date.startsWith(selectedMonth));
+  const monthExpenses = expenses.filter((e) => e.expense_date.startsWith(selectedMonth));
+  const monthRevenue = monthOrders.reduce((a, o) => a + o.amount_paid, 0);
+  const monthSpend = monthExpenses.reduce((a, e) => a + e.amount, 0);
   const owed = orders.reduce((a, o) => a + Math.max(0, o.total_due - o.amount_paid), 0);
   const latest = [...orders].sort((a, b) => b.order_date.localeCompare(a.order_date)).slice(0, 5);
   const grouped = useMemo(() => {
@@ -89,8 +98,8 @@ export default function Dashboard() {
     if (cashflowRange === 'all') {
       const firstRecorded = [...orders.map((o) => o.order_date), ...expenses.map((e) => e.expense_date)]
         .sort()[0];
-      const start = firstRecorded ? new Date(`${firstRecorded.slice(0, 7)}-01T00:00:00`) : now;
-      const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+      const earliest = firstRecorded ? new Date(`${firstRecorded.slice(0, 7)}-01T00:00:00`) : now;
+      const cursor = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
       const end = new Date(now.getFullYear(), now.getMonth(), 1);
       while (cursor <= end) {
         keys.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`);
@@ -139,18 +148,42 @@ export default function Dashboard() {
         </div>
       )}
       <div className="metric-grid">
+        <section className="panel" style={{ gridColumn: '1 / -1', marginTop: 0, padding: 16 }}>
+          <div className="panel-header" style={{ marginBottom: 0 }}>
+            <div>
+              <h2 className="panel-title">Tổng kết tháng {String(selectedMonthNumber).padStart(2, '0')}/{selectedYear}</h2>
+              <div className="panel-note">Tổng tiền đã thu và chi phí trong tháng được chọn</div>
+            </div>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <MuiDatePicker
+                label="Chọn tháng"
+                views={['year', 'month']}
+                openTo="month"
+                format="MM/YYYY"
+                value={dayjs(`${selectedMonth}-01`)}
+                maxDate={dayjs().startOf('month')}
+                onChange={(date) => {
+                  if (date?.isValid()) setSelectedMonth(date.format('YYYY-MM'));
+                }}
+                slotProps={{
+                  textField: { size: 'small', sx: { width: 170, '& .MuiInputBase-root': { height: 40 } } },
+                }}
+              />
+            </LocalizationProvider>
+          </div>
+        </section>
         <Metric
-          label="Thực thu hôm nay"
-          value={money(todayRevenue)}
-          note={`${todayOrders.length} đơn hàng hôm nay`}
+          label="Thực thu trong tháng"
+          value={money(monthRevenue)}
+          note={`${monthOrders.length} đơn hàng trong tháng`}
           icon={<ArrowDownward fontSize="small" />}
           color="#27866c"
           soft="#e7f6ef"
         />
         <Metric
-          label="Chi phí hôm nay"
-          value={money(todaySpend)}
-          note={`${money(flowerSpend)} tiền hoa lũy kế`}
+          label="Chi phí trong tháng"
+          value={money(monthSpend)}
+          note={`${money(monthExpenses.filter((e) => e.kind === 'flower').reduce((a, e) => a + e.amount, 0))} tiền hoa trong tháng`}
           icon={<ArrowUpward fontSize="small" />}
           color="#d07866"
           soft="#fff0ec"
