@@ -26,6 +26,7 @@ export type Expense = {
   payment_method: string | null;
   payee: string | null;
   notes: string | null;
+  staff_id?: string | null;
   created_at?: string;
 };
 export type Staff = { id: string; name: string; phone: string | null; active: boolean };
@@ -46,11 +47,13 @@ export type Payment = {
   notes: string | null;
 };
 export const paymentMethods = ['Tiền mặt', 'Chuyển khoản', 'Khác'];
+export const STAFF_HOURLY_RATE = 25000;
 export const expenseCategories = [
   'Tiền giấy gói/ruy băng',
   'Tiền xốp cắm hoa',
   'Tiền giỏ/hộp hoa',
   'Tiền lẵng/kệ hoa',
+  'Tiền nhân sự',
   'Phụ kiện/thiệp/keo',
   'Chi phí vận chuyển (Ship)',
   'Mặt bằng/Điện nước',

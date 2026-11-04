@@ -167,9 +167,9 @@ export default function ExpensesPage() {
           <>
           <Mini label="Tổng tiền mua hoa" val={money(flower)} note="Hoa tươi nhập mới" tone="green" />
           <Mini
-            label="Tiền mua vật dụng / thuê mặt bằng"
+            label="Tiền chi khác"
             val={money(other)}
-            note="Các khoản ngoài tiền mua hoa"
+            note="Vật dụng, mặt bằng, nhân sự và các khoản khác"
             tone="coral"
           />
           <Mini
@@ -222,6 +222,7 @@ export default function ExpensesPage() {
                 <MenuItem value="Tiền mua hoa">Tiền mua hoa</MenuItem>
                 <MenuItem value="Tiền mua vật dụng">Tiền mua vật dụng</MenuItem>
                 <MenuItem value="Tiền thuê mặt bằng">Tiền thuê mặt bằng</MenuItem>
+                <MenuItem value="Tiền nhân sự">Tiền nhân sự</MenuItem>
               </Select>
             </FormControl>
           </div>
@@ -259,10 +260,10 @@ export default function ExpensesPage() {
                   </td>
                   <td>{x.payment_method || '—'}</td>
                   <td>{x.notes || '—'}</td>
-                  <td><div className="icon-actions">
+                  <td>{x.staff_id ? <span className="expense-meta">Quản lý tại Nhân sự</span> : <div className="icon-actions">
                     <button className="icon-action icon-action-edit" aria-label="Sửa khoản chi" title="Sửa khoản chi" onClick={() => setEditing(x)}><Edit fontSize="small" /></button>
                     <button className="icon-action icon-action-delete" aria-label="Xóa khoản chi" title="Xóa khoản chi" onClick={() => setDeleteTarget(x)}><Delete fontSize="small" /></button>
-                  </div></td>
+                  </div>}</td>
                 </tr>
               ))}
             </tbody>
@@ -389,6 +390,7 @@ function Mini({
 }
 function expenseGroup(expense: Expense) {
   if (expense.kind === 'flower') return 'Tiền mua hoa';
+  if (expense.category === 'Tiền nhân sự') return 'Tiền nhân sự';
   if (expense.category === 'Tiền thuê mặt bằng' || expense.category === 'Mặt bằng/Điện nước')
     return 'Tiền thuê mặt bằng';
   if (expense.category === 'Tiền mua vật dụng') return 'Tiền mua vật dụng';

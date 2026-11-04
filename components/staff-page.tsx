@@ -1,12 +1,23 @@
 ﻿'use client';
 import { FormEvent, useEffect, useState } from 'react';
-import { Add, Delete, Edit } from '@mui/icons-material';
+import { Add, Delete, Edit, Person, Payments } from '@mui/icons-material';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
+import ButtonBase from '@mui/material/ButtonBase';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import MuiFormControl from '@mui/material/FormControl';
@@ -17,15 +28,18 @@ import { DateField, Heading, Modal, Page } from './ui';
 import { useApp } from './providers';
 import {
   addShift,
+  addExpense,
   addStaff,
   deleteShift,
   deleteStaff,
   getShifts,
+  getShiftsForStaff,
   getStaff,
+  getStaffPayrollSummary,
   updateShift,
   updateStaff,
 } from '@/lib/data';
-import { Shift, Staff, shortDate } from '@/lib/types';
+import { money, paymentMethods, Shift, Staff, shortDate, STAFF_HOURLY_RATE } from '@/lib/types';
 import { isSupabaseConfigured } from '@/lib/supabase';
 const today = () => new Date().toISOString().slice(0, 10);
 export default function StaffPage() {
@@ -39,11 +53,19 @@ export default function StaffPage() {
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ type: 'staff'; person: Staff } | { type: 'shift'; shift: Shift } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [staffShifts, setStaffShifts] = useState<Shift[]>([]);
+  const [loadingStaffShifts, setLoadingStaffShifts] = useState(false);
+  const [payroll, setPayroll] = useState<Record<string, { hours: number; paid: number }>>({});
+  const [payingStaff, setPayingStaff] = useState<Staff | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paying, setPaying] = useState(false);
   useEffect(() => {
-    Promise.all([getStaff(), getShifts()])
-      .then(([s, h]) => {
+    Promise.all([getStaff(), getShifts(), getStaffPayrollSummary()])
+      .then(([s, h, p]) => {
         setStaff(s);
         setShifts(h);
+        setPayroll(p);
       })
       .catch((e) => toast(e.message));
   }, [version]);
@@ -101,7 +123,7 @@ export default function StaffPage() {
       await deleteStaff(person.id);
       setDeleteTarget(null);
       refresh();
-      toast('Đã xóa nhân sự');
+      toast('Đã xóa khỏi danh sách. Lịch sử chấm công và khoản chi vẫn được giữ.');
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể xóa nhân sự');
     } finally {
@@ -120,6 +142,57 @@ export default function StaffPage() {
       toast(err instanceof Error ? err.message : 'Không thể xóa ca làm');
     } finally {
       setDeleting(false);
+    }
+  }
+  async function openStaffDetails(person: Staff) {
+    setSelectedStaff(person);
+    setStaffShifts([]);
+    setLoadingStaffShifts(true);
+    try {
+      setStaffShifts(await getShiftsForStaff(person.id));
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Không thể tải lịch sử ca làm');
+    } finally {
+      setLoadingStaffShifts(false);
+    }
+  }
+  const staffHours = staffShifts.reduce((sum, shift) => sum + shift.hours, 0);
+  const activeStaff = staff.filter((person) => person.active);
+  const owedFor = (person: Staff) => Math.max(0, (payroll[person.id]?.hours || 0) * STAFF_HOURLY_RATE - (payroll[person.id]?.paid || 0));
+  const selectedOwed = selectedStaff
+    ? Math.max(0, staffHours * STAFF_HOURLY_RATE - (payroll[selectedStaff.id]?.paid || 0))
+    : 0;
+  async function submitStaffPayment(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!payingStaff) return;
+    const form = new FormData(e.currentTarget);
+    const amount = Number(form.get('amount'));
+    const outstanding = owedFor(payingStaff);
+    if (!Number.isInteger(amount) || amount <= 0 || amount > outstanding) {
+      toast('Số tiền trả phải lớn hơn 0 và không vượt quá số tiền còn phải trả.');
+      return;
+    }
+    setPaying(true);
+    try {
+      await addExpense({
+        expense_date: String(form.get('expense_date')),
+        kind: 'other',
+        category: 'Tiền nhân sự',
+        description: `Trả tiền công - ${payingStaff.name}`,
+        amount,
+        payment_method: String(form.get('payment_method')) || null,
+        payee: payingStaff.name,
+        notes: String(form.get('notes') || '') || null,
+        staff_id: payingStaff.id,
+      });
+      setPayingStaff(null);
+      setPaymentAmount('');
+      refresh();
+      toast('Đã ghi nhận thanh toán và thêm vào khoản chi nhân sự.');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Không thể ghi nhận thanh toán');
+    } finally {
+      setPaying(false);
     }
   }
   const hoursToday = shifts.filter((x) => x.work_date === today()).reduce((a, x) => a + x.hours, 0);
@@ -147,7 +220,7 @@ export default function StaffPage() {
         </div>
       )}
       <div className="metric-grid" style={{ marginBottom: 18 }}>
-        <Mini label="Tổng nhân sự" val={String(staff.length)} />
+        <Mini label="Tổng nhân sự" val={String(activeStaff.length)} />
         <Mini label="Giờ làm hôm nay" val={`${hoursToday} giờ`} />
         <Mini label="Tổng giờ đã ghi" val={`${totalHours} giờ`} />
         <Mini
@@ -163,16 +236,35 @@ export default function StaffPage() {
               <div className="panel-note">Danh sách nhân sự đang hoạt động</div>
             </div>
           </div>
-          {staff.map((s) => (
+          {activeStaff.map((s) => (
             <div className="expense-row" key={s.id}>
-              <div className="customer-avatar" style={{ width: 40, height: 40, borderRadius: 14 }}>
-                {s.name.slice(0, 1)}
-              </div>
-              <div className="expense-info">
-                <div className="expense-name">{s.name}</div>
-                <div className="expense-meta">{s.phone || 'Chưa có số điện thoại'}</div>
-              </div>
-              <span className="status paid">Đang làm</span>
+              <ButtonBase
+                onClick={() => openStaffDetails(s)}
+                aria-label={`Xem giờ làm và tiền công của ${s.name}`}
+                sx={{ display: 'flex', flex: 1, minWidth: 0, gap: 1.25, justifyContent: 'flex-start', textAlign: 'left', borderRadius: 2, p: 0.5 }}
+              >
+                <div className="customer-avatar" style={{ width: 40, height: 40, borderRadius: 14 }}>
+                  {s.name.slice(0, 1)}
+                </div>
+                <div className="expense-info">
+                  <div className="expense-name">{s.name}</div>
+                  <div className="expense-meta">{s.phone || 'Chưa có số điện thoại'}</div>
+                </div>
+              </ButtonBase>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <span className={`status ${owedFor(s) > 0 ? 'deposit' : 'paid'}`}>
+                  {owedFor(s) > 0 ? `Còn trả ${money(owedFor(s))}` : 'Đã trả đủ'}
+                </span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<Payments />}
+                  disabled={owedFor(s) <= 0}
+                  onClick={() => { setPayingStaff(s); setPaymentAmount(String(owedFor(s))); }}
+                >
+                  Trả tiền
+                </Button>
+              </Stack>
               <div className="staff-actions">
                 <button
                   className="secondary-button"
@@ -185,7 +277,8 @@ export default function StaffPage() {
                 <button
                   className="secondary-button danger-button"
                   aria-label={`Xóa nhân sự ${s.name}`}
-                  title="Xóa nhân sự"
+                  title={owedFor(s) > 0 ? 'Thanh toán đủ tiền công trước khi xóa' : 'Xóa nhân sự'}
+                  disabled={owedFor(s) > 0}
                   onClick={() => setDeleteTarget({ type: 'staff', person: s })}
                 >
                   <Delete fontSize="small" />
@@ -193,7 +286,7 @@ export default function StaffPage() {
               </div>
             </div>
           ))}
-          {staff.length === 0 && (
+          {activeStaff.length === 0 && (
             <div className="empty-state">Chưa có nhân viên. Thêm nhân sự để ghi nhận ca làm.</div>
           )}
         </section>
@@ -257,6 +350,103 @@ export default function StaffPage() {
           </div>
         </section>
       </div>
+      <Dialog open={selectedStaff !== null} onClose={() => setSelectedStaff(null)} fullWidth maxWidth="md">
+        <DialogTitle sx={{ pb: 1 }}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Person sx={{ color: 'var(--green-dark)' }} />
+            <span>Chấm công · {selectedStaff?.name}</span>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 2 }}>
+            <Card variant="outlined" sx={{ flex: 1, borderRadius: 3 }}>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Tổng giờ làm</Typography>
+                <Typography variant="h5" fontWeight={700} sx={{ mt: 0.5 }}>
+                  {loadingStaffShifts ? <CircularProgress size={20} /> : `${staffHours} giờ`}
+                </Typography>
+              </CardContent>
+            </Card>
+            <Card variant="outlined" sx={{ flex: 1, borderRadius: 3 }}>
+              <CardContent>
+                <Typography variant="body2" color="text.secondary">Còn phải trả</Typography>
+                <Typography variant="h5" fontWeight={700} sx={{ mt: 0.5, color: 'var(--green-dark)' }}>
+                  {loadingStaffShifts ? <CircularProgress size={20} /> : money(selectedOwed)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Đã trả {money(payroll[selectedStaff?.id || '']?.paid || 0)} · Đơn giá {money(STAFF_HOURLY_RATE)} / giờ
+                </Typography>
+              </CardContent>
+            </Card>
+          </Stack>
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>Chi tiết ca làm</Typography>
+          {loadingStaffShifts ? (
+            <Stack alignItems="center" sx={{ py: 4 }}><CircularProgress size={28} /></Stack>
+          ) : staffShifts.length > 0 ? (
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2, maxHeight: 360 }}>
+              <Table stickyHeader size="small" aria-label={`Chi tiết ca làm của ${selectedStaff?.name}`}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Ngày</TableCell><TableCell>Ca</TableCell><TableCell align="right">Số giờ</TableCell><TableCell align="right">Tiền công</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {staffShifts.map((shift) => (
+                    <TableRow key={shift.id} hover>
+                      <TableCell>{shortDate(shift.work_date)}</TableCell>
+                      <TableCell>{shift.shift_name || '—'}</TableCell>
+                      <TableCell align="right">{shift.hours}</TableCell>
+                      <TableCell align="right">{money(shift.hours * STAFF_HOURLY_RATE)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Typography color="text.secondary" sx={{ py: 2 }}>Nhân viên chưa có ca làm nào.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setSelectedStaff(null)} sx={{ color: 'var(--green-dark)', fontWeight: 700 }}>Đóng</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={payingStaff !== null} onClose={() => !paying && setPayingStaff(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Trả tiền công · {payingStaff?.name}</DialogTitle>
+        <DialogContent dividers>
+          <Typography sx={{ mb: 2 }} color="text.secondary">
+            Còn phải trả: <b>{payingStaff ? money(owedFor(payingStaff)) : money(0)}</b>. Khoản trả sẽ tự ghi vào bảng chi mục “Tiền nhân sự”.
+          </Typography>
+          <form id="staff-payment-form" onSubmit={submitStaffPayment}>
+            <Stack spacing={2}>
+              <DateField label="Ngày trả" name="expense_date" defaultValue={today()} required key={`pay-date-${payingStaff?.id || ''}`} />
+              <TextField
+                label="Số tiền trả (VNĐ)"
+                name="amount"
+                type="number"
+                required
+                fullWidth
+                size="small"
+                value={paymentAmount}
+                onChange={(event) => setPaymentAmount(event.target.value)}
+                slotProps={{ htmlInput: { min: 1, max: payingStaff ? owedFor(payingStaff) : undefined, step: 1 } }}
+              />
+              <MuiFormControl size="small" fullWidth className="form-mui-control">
+                <MuiInputLabel id="staff-payment-method-label">Hình thức thanh toán</MuiInputLabel>
+                <MuiSelect name="payment_method" labelId="staff-payment-method-label" label="Hình thức thanh toán" defaultValue={paymentMethods[0]}>
+                  {paymentMethods.map((method) => <MuiMenuItem key={method} value={method}>{method}</MuiMenuItem>)}
+                </MuiSelect>
+              </MuiFormControl>
+              <TextField label="Ghi chú" name="notes" size="small" fullWidth />
+            </Stack>
+          </form>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setPayingStaff(null)} disabled={paying} sx={{ color: 'var(--green-dark)', fontWeight: 700 }}>Hủy</Button>
+          <Button type="submit" form="staff-payment-form" disabled={paying} variant="contained" sx={{ backgroundColor: 'var(--green-dark)', borderRadius: '12px', fontWeight: 700 }}>
+            {paying ? <CircularProgress size={18} color="inherit" /> : 'Ghi nhận trả tiền'}
+          </Button>
+        </DialogActions>
+      </Dialog>
       {modal && (
         <Modal
           title={
@@ -294,7 +484,7 @@ export default function StaffPage() {
                     <MuiFormControl size="small" fullWidth required className="form-mui-control">
                     <MuiInputLabel id="shift-staff-label">Nhân sự</MuiInputLabel>
                     <MuiSelect name="staff_id" labelId="shift-staff-label" label="Nhân sự" required defaultValue={editingShift?.staff_id || ''}>
-                      {staff.map((x) => (
+                      {activeStaff.map((x) => (
                         <MuiMenuItem key={x.id} value={x.id}>
                           {x.name}
                         </MuiMenuItem>
@@ -338,7 +528,7 @@ export default function StaffPage() {
         <DialogContent dividers>
           <Typography>
             {deleteTarget?.type === 'staff'
-              ? <>Bạn có chắc chắn muốn xóa nhân sự <b>{deleteTarget.person.name}</b>?</>
+              ? <>Xóa <b>{deleteTarget.person.name}</b> khỏi danh sách nhân sự? Lịch sử ca làm và các khoản đã trả sẽ được giữ lại.</>
               : deleteTarget?.type === 'shift'
                 ? <>Bạn có chắc chắn muốn xóa ca làm ngày <b>{shortDate(deleteTarget.shift.work_date)}</b> của <b>{staff.find((person) => person.id === deleteTarget.shift.staff_id)?.name || 'nhân sự'}</b>?</>
                 : ''}

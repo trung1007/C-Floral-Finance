@@ -1,6 +1,6 @@
 ﻿import { supabase } from './supabase';
 import type { Expense, Order, Payment, Shift, Staff } from './types';
-import { paymentStatus } from './types';
+import { paymentStatus, STAFF_HOURLY_RATE } from './types';
 const DEMO_ORDERS: Order[] = [
   {
     id: 'demo-1',
@@ -212,6 +212,30 @@ export async function getStaff(): Promise<Staff[]> {
   if (error) throw error;
   return data || [];
 }
+export type StaffPayrollSummary = Record<string, { hours: number; paid: number }>;
+export async function getStaffPayrollSummary(): Promise<StaffPayrollSummary> {
+  if (!supabase)
+    throw Error(
+      'Supabase chưa được cấu hình. Kiểm tra NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY trong .env.',
+    );
+  const [{ data: shifts, error: shiftsError }, { data: payments, error: paymentsError }] = await Promise.all([
+    supabase.from('work_shifts').select('staff_id,hours'),
+    supabase.from('expenses').select('staff_id,amount').eq('category', 'Tiền nhân sự').not('staff_id', 'is', null),
+  ]);
+  if (shiftsError) throw shiftsError;
+  if (paymentsError) throw paymentsError;
+  const summary: StaffPayrollSummary = {};
+  for (const shift of shifts || []) {
+    const row = (summary[shift.staff_id] ||= { hours: 0, paid: 0 });
+    row.hours += Number(shift.hours);
+  }
+  for (const payment of payments || []) {
+    if (!payment.staff_id) continue;
+    const row = (summary[payment.staff_id] ||= { hours: 0, paid: 0 });
+    row.paid += Number(payment.amount);
+  }
+  return summary;
+}
 export async function getShifts(): Promise<Shift[]> {
   if (!supabase)
     throw Error(
@@ -222,6 +246,19 @@ export async function getShifts(): Promise<Shift[]> {
     .select('*')
     .order('work_date', { ascending: false })
     .limit(300);
+  if (error) throw error;
+  return data || [];
+}
+export async function getShiftsForStaff(staffId: string): Promise<Shift[]> {
+  if (!supabase)
+    throw Error(
+      'Supabase chưa được cấu hình. Kiểm tra NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY trong .env.',
+    );
+  const { data, error } = await supabase
+    .from('work_shifts')
+    .select('*')
+    .eq('staff_id', staffId)
+    .order('work_date', { ascending: false });
   if (error) throw error;
   return data || [];
 }
@@ -356,10 +393,16 @@ export async function updateStaff(id: string, input: { name: string; phone: stri
 export async function deleteStaff(id: string) {
   if (!supabase)
     throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
-  const { error } = await supabase.from('staff').delete().eq('id', id);
-  if (error?.code === '23503') {
-    throw Error('Không thể xóa nhân sự đã có ca làm. Hãy giữ lại thông tin này để bảo toàn lịch sử chấm công.');
-  }
+  const [{ data: shifts, error: shiftsError }, { data: payments, error: paymentsError }] = await Promise.all([
+    supabase.from('work_shifts').select('hours').eq('staff_id', id),
+    supabase.from('expenses').select('amount').eq('staff_id', id).eq('category', 'Tiền nhân sự'),
+  ]);
+  if (shiftsError) throw shiftsError;
+  if (paymentsError) throw paymentsError;
+  const earned = (shifts || []).reduce((sum, shift) => sum + Number(shift.hours) * STAFF_HOURLY_RATE, 0);
+  const paid = (payments || []).reduce((sum, payment) => sum + Number(payment.amount), 0);
+  if (paid < earned) throw Error('Chỉ có thể xóa nhân sự sau khi đã thanh toán đủ tiền công.');
+  const { error } = await supabase.from('staff').update({ active: false }).eq('id', id);
   if (error) throw error;
 }
 export async function addShift(input: {
