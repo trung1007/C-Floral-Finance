@@ -18,6 +18,7 @@ import { FormControl as MuiFormControl, InputLabel as MuiInputLabel, Select as M
 import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import 'dayjs/locale/en-gb';
 import { DateField, Heading, Modal, MoneyField, Page, Status } from './ui';
 import { useApp } from './providers';
 import { addOrder, addPayment, deleteOrder, getOrders, getOrdersByDateAndCustomer, getPayments, updateOrder } from '@/lib/data';
@@ -271,7 +272,7 @@ export default function OrdersPage() {
               onChange={(e) => setQuery(e.target.value)}
               sx={{ minWidth: 260, '& .MuiInputBase-root': { height: 40 } }}
             />
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="en-gb">
               <MuiDatePicker
                 label="Lọc theo ngày đặt"
                 format="DD/MM/YYYY"

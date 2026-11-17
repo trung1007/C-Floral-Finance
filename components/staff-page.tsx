@@ -35,11 +35,13 @@ import {
   getShifts,
   getShiftsForStaff,
   getStaff,
+  getStaffPaymentsForStaff,
   getStaffPayrollSummary,
+  updateStaffPaymentCoverage,
   updateShift,
   updateStaff,
 } from '@/lib/data';
-import { money, paymentMethods, Shift, Staff, shortDate, STAFF_HOURLY_RATE } from '@/lib/types';
+import { Expense, money, paymentMethods, Shift, Staff, shortDate, STAFF_HOURLY_RATE } from '@/lib/types';
 import { isSupabaseConfigured } from '@/lib/supabase';
 const today = () => new Date().toISOString().slice(0, 10);
 export default function StaffPage() {
@@ -56,7 +58,10 @@ export default function StaffPage() {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [staffShifts, setStaffShifts] = useState<Shift[]>([]);
   const [loadingStaffShifts, setLoadingStaffShifts] = useState(false);
-  const [payroll, setPayroll] = useState<Record<string, { hours: number; paid: number }>>({});
+  const [payroll, setPayroll] = useState<Record<string, { hours: number; paid: number; paidThrough: string | null }>>({});
+  const [staffPayments, setStaffPayments] = useState<Expense[]>([]);
+  const [editingCoverage, setEditingCoverage] = useState<Expense | null>(null);
+  const [coverageBusy, setCoverageBusy] = useState(false);
   const [payingStaff, setPayingStaff] = useState<Staff | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paying, setPaying] = useState(false);
@@ -147,9 +152,15 @@ export default function StaffPage() {
   async function openStaffDetails(person: Staff) {
     setSelectedStaff(person);
     setStaffShifts([]);
+    setStaffPayments([]);
     setLoadingStaffShifts(true);
     try {
-      setStaffShifts(await getShiftsForStaff(person.id));
+      const [personShifts, payments] = await Promise.all([
+        getShiftsForStaff(person.id),
+        getStaffPaymentsForStaff(person.id),
+      ]);
+      setStaffShifts(personShifts);
+      setStaffPayments(payments);
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Không thể tải lịch sử ca làm');
     } finally {
@@ -162,14 +173,41 @@ export default function StaffPage() {
   const selectedOwed = selectedStaff
     ? Math.max(0, staffHours * STAFF_HOURLY_RATE - (payroll[selectedStaff.id]?.paid || 0))
     : 0;
+  const selectedPaidThrough = selectedStaff ? payroll[selectedStaff.id]?.paidThrough : null;
+  async function savePaymentCoverage(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingCoverage) return;
+    const paidThrough = String(new FormData(e.currentTarget).get('staff_paid_through') || '') || null;
+    if (paidThrough && paidThrough > editingCoverage.expense_date) {
+      toast('Mốc ngày được thanh toán không thể sau ngày trả tiền.');
+      return;
+    }
+    setCoverageBusy(true);
+    try {
+      const updated = await updateStaffPaymentCoverage(editingCoverage.id, paidThrough);
+      setStaffPayments((current) => current.map((payment) => payment.id === updated.id ? updated : payment));
+      refresh();
+      setEditingCoverage(null);
+      toast('Đã cập nhật ngày tiền công được thanh toán đến.');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Không thể cập nhật mốc thanh toán');
+    } finally {
+      setCoverageBusy(false);
+    }
+  }
   async function submitStaffPayment(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!payingStaff) return;
     const form = new FormData(e.currentTarget);
     const amount = Number(form.get('amount'));
+    const paidThrough = String(form.get('staff_paid_through') || '') || null;
     const outstanding = owedFor(payingStaff);
     if (!Number.isInteger(amount) || amount <= 0 || amount > outstanding) {
       toast('Số tiền trả phải lớn hơn 0 và không vượt quá số tiền còn phải trả.');
+      return;
+    }
+    if (paidThrough && paidThrough > String(form.get('expense_date'))) {
+      toast('Mốc ngày được thanh toán không thể sau ngày trả tiền.');
       return;
     }
     setPaying(true);
@@ -184,6 +222,7 @@ export default function StaffPage() {
         payee: payingStaff.name,
         notes: String(form.get('notes') || '') || null,
         staff_id: payingStaff.id,
+        staff_paid_through: paidThrough,
       });
       setPayingStaff(null);
       setPaymentAmount('');
@@ -254,6 +293,9 @@ export default function StaffPage() {
               <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <span className={`status ${owedFor(s) > 0 ? 'deposit' : 'paid'}`}>
                   {owedFor(s) > 0 ? `Còn trả ${money(owedFor(s))}` : 'Đã trả đủ'}
+                </span>
+                <span className="expense-meta">
+                  {payroll[s.id]?.paidThrough ? `Đã trả đến ${shortDate(payroll[s.id].paidThrough!)}` : 'Chưa xác định ngày đã trả đến'}
                 </span>
                 <Button
                   size="small"
@@ -376,6 +418,9 @@ export default function StaffPage() {
                 <Typography variant="caption" color="text.secondary">
                   Đã trả {money(payroll[selectedStaff?.id || '']?.paid || 0)} · Đơn giá {money(STAFF_HOURLY_RATE)} / giờ
                 </Typography>
+                <Typography variant="caption" display="block" color="text.secondary">
+                  Đã thanh toán đến {selectedPaidThrough ? shortDate(selectedPaidThrough) : 'chưa ghi nhận mốc ngày'}
+                </Typography>
               </CardContent>
             </Card>
           </Stack>
@@ -387,7 +432,7 @@ export default function StaffPage() {
               <Table stickyHeader size="small" aria-label={`Chi tiết ca làm của ${selectedStaff?.name}`}>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Ngày</TableCell><TableCell>Ca</TableCell><TableCell align="right">Số giờ</TableCell><TableCell align="right">Tiền công</TableCell>
+                    <TableCell>Ngày</TableCell><TableCell>Ca</TableCell><TableCell align="right">Số giờ</TableCell><TableCell align="right">Tiền công</TableCell><TableCell>Trạng thái</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -397,6 +442,11 @@ export default function StaffPage() {
                       <TableCell>{shift.shift_name || '—'}</TableCell>
                       <TableCell align="right">{shift.hours}</TableCell>
                       <TableCell align="right">{money(shift.hours * STAFF_HOURLY_RATE)}</TableCell>
+                      <TableCell>
+                        <span className={`status ${selectedPaidThrough && shift.work_date <= selectedPaidThrough ? 'paid' : 'deposit'}`}>
+                          {selectedPaidThrough && shift.work_date <= selectedPaidThrough ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                        </span>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -405,6 +455,22 @@ export default function StaffPage() {
           ) : (
             <Typography color="text.secondary" sx={{ py: 2 }}>Nhân viên chưa có ca làm nào.</Typography>
           )}
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mt: 2, mb: 1 }}>Lịch sử trả tiền công</Typography>
+          {staffPayments.length ? (
+            <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+              <Table size="small" aria-label={`Lịch sử trả tiền công của ${selectedStaff?.name}`}>
+                <TableHead><TableRow><TableCell>Ngày trả</TableCell><TableCell>Số tiền</TableCell><TableCell>Trả công đến ngày</TableCell><TableCell align="right">Thao tác</TableCell></TableRow></TableHead>
+                <TableBody>{staffPayments.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell>{shortDate(payment.expense_date)}</TableCell>
+                    <TableCell>{money(payment.amount)}</TableCell>
+                    <TableCell>{payment.staff_paid_through ? shortDate(payment.staff_paid_through) : 'Chưa ghi nhận'}</TableCell>
+                    <TableCell align="right"><Button size="small" onClick={() => setEditingCoverage(payment)}>Sửa mốc ngày</Button></TableCell>
+                  </TableRow>
+                ))}</TableBody>
+              </Table>
+            </TableContainer>
+          ) : <Typography color="text.secondary">Chưa có khoản trả tiền công nào.</Typography>}
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setSelectedStaff(null)} sx={{ color: 'var(--green-dark)', fontWeight: 700 }}>Đóng</Button>
@@ -419,6 +485,10 @@ export default function StaffPage() {
           <form id="staff-payment-form" onSubmit={submitStaffPayment}>
             <Stack spacing={2}>
               <DateField label="Ngày trả" name="expense_date" defaultValue={today()} required key={`pay-date-${payingStaff?.id || ''}`} />
+              <DateField label="Trả tiền công đến hết ngày (không bắt buộc)" name="staff_paid_through" key={`paid-through-${payingStaff?.id || ''}`} />
+              <Typography variant="caption" color="text.secondary" sx={{ mt: '-12px !important' }}>
+                Chỉ chọn ngày này khi khoản trả đã thanh toán đủ tiền công cho các ca đến hết ngày đó. Có thể để trống nếu trả một phần.
+              </Typography>
               <TextField
                 label="Số tiền trả (VNĐ)"
                 name="amount"
@@ -445,6 +515,21 @@ export default function StaffPage() {
           <Button type="submit" form="staff-payment-form" disabled={paying} variant="contained" sx={{ backgroundColor: 'var(--green-dark)', borderRadius: '12px', fontWeight: 700 }}>
             {paying ? <CircularProgress size={18} color="inherit" /> : 'Ghi nhận trả tiền'}
           </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={editingCoverage !== null} onClose={() => !coverageBusy && setEditingCoverage(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Cập nhật mốc thanh toán</DialogTitle>
+        <DialogContent dividers>
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            Khoản trả ngày {editingCoverage ? shortDate(editingCoverage.expense_date) : ''} · {editingCoverage ? money(editingCoverage.amount) : ''}
+          </Typography>
+          <form id="coverage-form" onSubmit={savePaymentCoverage}>
+            <DateField label="Trả tiền công đến hết ngày" name="staff_paid_through" defaultValue={editingCoverage?.staff_paid_through || undefined} key={`coverage-${editingCoverage?.id || ''}-${editingCoverage?.staff_paid_through || ''}`} />
+          </form>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setEditingCoverage(null)} disabled={coverageBusy}>Hủy</Button>
+          <Button type="submit" form="coverage-form" variant="contained" disabled={coverageBusy} sx={{ backgroundColor: 'var(--green-dark)' }}>Lưu</Button>
         </DialogActions>
       </Dialog>
       {modal && (

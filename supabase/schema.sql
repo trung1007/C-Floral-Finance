@@ -89,6 +89,7 @@ create table if not exists public.staff (
   created_at timestamptz not null default now()
 );
 alter table public.expenses add column if not exists staff_id uuid references public.staff(id) on delete set null;
+alter table public.expenses add column if not exists staff_paid_through date;
 create index if not exists expenses_staff_id_idx on public.expenses(staff_id);
 create table if not exists public.work_shifts (
   id uuid primary key default gen_random_uuid(),

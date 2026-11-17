@@ -27,6 +27,7 @@ export type Expense = {
   payee: string | null;
   notes: string | null;
   staff_id?: string | null;
+  staff_paid_through?: string | null;
   created_at?: string;
 };
 export type Staff = { id: string; name: string; phone: string | null; active: boolean };

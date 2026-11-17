@@ -5,6 +5,7 @@ import { CircularProgress, TextField } from '@mui/material';
 import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import 'dayjs/locale/en-gb';
 import { formatMoneyInput } from '@/lib/types';
 
 export function MoneyField({
@@ -63,7 +64,7 @@ export function DateField({
   };
   return (
     <div className={className || 'field'}>
-      <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="en-gb">
         <MuiDatePicker
           label={label}
           format="DD/MM/YYYY"

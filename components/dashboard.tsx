@@ -20,6 +20,7 @@ import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-p
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { BarChart } from '@mui/x-charts/BarChart';
 import dayjs from 'dayjs';
+import 'dayjs/locale/en-gb';
 import { Heading, Page, Status } from './ui';
 import { useApp } from './providers';
 import { getExpenses, getOrders } from '@/lib/data';
@@ -79,7 +80,7 @@ export default function Dashboard() {
   const monthExpenses = expenses.filter((e) => e.expense_date.startsWith(selectedMonth));
   const monthRevenue = monthOrders.reduce((a, o) => a + o.amount_paid, 0);
   const monthSpend = monthExpenses.reduce((a, e) => a + e.amount, 0);
-  const owed = orders.reduce((a, o) => a + Math.max(0, o.total_due - o.amount_paid), 0);
+  const monthOwed = monthOrders.reduce((a, o) => a + Math.max(0, o.total_due - o.amount_paid), 0);
   const latest = [...orders].sort((a, b) => b.order_date.localeCompare(a.order_date)).slice(0, 5);
   const grouped = useMemo(() => {
     const orderIncome = new Map<string, number>();
@@ -154,7 +155,7 @@ export default function Dashboard() {
               <h2 className="panel-title">Tổng kết tháng {String(selectedMonthNumber).padStart(2, '0')}/{selectedYear}</h2>
               <div className="panel-note">Tổng tiền đã thu và chi phí trong tháng được chọn</div>
             </div>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="en-gb">
               <MuiDatePicker
                 label="Chọn tháng"
                 views={['year', 'month']}
@@ -190,16 +191,16 @@ export default function Dashboard() {
         />
         <Metric
           label="Khách còn nợ"
-          value={money(owed)}
-          note={`Tổng phải thu ${money(allDue)}`}
+          value={money(monthOwed)}
+          note={`Đơn trong tháng ${String(selectedMonthNumber).padStart(2, '0')}/${selectedYear}`}
           icon={<AttachMoney fontSize="small" />}
           color="#bc8e2b"
           soft="#fff7df"
         />
         <Metric
           label="Chênh lệch thu – chi"
-          value={money(allPaid - allSpent)}
-          note={`Tổng chi đã ghi ${money(allSpent)}`}
+          value={money(monthRevenue - monthSpend)}
+          note={`Tháng ${String(selectedMonthNumber).padStart(2, '0')}/${selectedYear} · Thu ${money(monthRevenue)} − chi ${money(monthSpend)}`}
           icon={<TrendingUp fontSize="small" />}
           color="#6583bf"
           soft="#eef3ff"

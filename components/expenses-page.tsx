@@ -22,6 +22,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { LocalizationProvider, DatePicker as MuiDatePicker } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import 'dayjs/locale/en-gb';
 import { DateField, Heading, Modal, MoneyField, Page } from './ui';
 import { useApp } from './providers';
 import { addExpense, deleteExpense, getExpenses, updateExpense } from '@/lib/data';
@@ -75,6 +76,7 @@ export default function ExpensesPage() {
         'Nội dung',
         'Số tiền',
         'Hình thức TT',
+        'Tiền công đến ngày',
         'Ghi chú',
       ],
       ...visible.map((x) => [
@@ -83,6 +85,7 @@ export default function ExpensesPage() {
         x.description,
         x.amount,
         x.payment_method || '',
+        x.staff_paid_through || '',
         x.notes || '',
       ]),
     ];
@@ -198,7 +201,7 @@ export default function ExpensesPage() {
               onChange={(e) => setQuery(e.target.value)}
               sx={{ minWidth: 240, '& .MuiInputBase-root': { height: 40 } }}
             />
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="en-gb">
               <MuiDatePicker
                 label="Lọc theo ngày chi"
                 format="DD/MM/YYYY"
@@ -239,6 +242,7 @@ export default function ExpensesPage() {
                 <th>Nội dung</th>
                 <th>Số tiền</th>
                 <th>Hình thức TT</th>
+                <th>Tiền công đến ngày</th>
                 <th>Ghi chú</th>
                 <th>Thao tác</th>
               </tr>
@@ -259,6 +263,7 @@ export default function ExpensesPage() {
                     <b>{money(x.amount)}</b>
                   </td>
                   <td>{x.payment_method || '—'}</td>
+                  <td>{x.staff_id && x.staff_paid_through ? shortDate(x.staff_paid_through) : '—'}</td>
                   <td>{x.notes || '—'}</td>
                   <td>{x.staff_id ? <span className="expense-meta">Quản lý tại Nhân sự</span> : <div className="icon-actions">
                     <button className="icon-action icon-action-edit" aria-label="Sửa khoản chi" title="Sửa khoản chi" onClick={() => setEditing(x)}><Edit fontSize="small" /></button>

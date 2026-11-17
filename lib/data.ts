@@ -212,7 +212,7 @@ export async function getStaff(): Promise<Staff[]> {
   if (error) throw error;
   return data || [];
 }
-export type StaffPayrollSummary = Record<string, { hours: number; paid: number }>;
+export type StaffPayrollSummary = Record<string, { hours: number; paid: number; paidThrough: string | null }>;
 export async function getStaffPayrollSummary(): Promise<StaffPayrollSummary> {
   if (!supabase)
     throw Error(
@@ -220,21 +220,49 @@ export async function getStaffPayrollSummary(): Promise<StaffPayrollSummary> {
     );
   const [{ data: shifts, error: shiftsError }, { data: payments, error: paymentsError }] = await Promise.all([
     supabase.from('work_shifts').select('staff_id,hours'),
-    supabase.from('expenses').select('staff_id,amount').eq('category', 'Tiền nhân sự').not('staff_id', 'is', null),
+    supabase.from('expenses').select('staff_id,amount,staff_paid_through').eq('category', 'Tiền nhân sự').not('staff_id', 'is', null),
   ]);
   if (shiftsError) throw shiftsError;
   if (paymentsError) throw paymentsError;
   const summary: StaffPayrollSummary = {};
   for (const shift of shifts || []) {
-    const row = (summary[shift.staff_id] ||= { hours: 0, paid: 0 });
+    const row = (summary[shift.staff_id] ||= { hours: 0, paid: 0, paidThrough: null });
     row.hours += Number(shift.hours);
   }
   for (const payment of payments || []) {
     if (!payment.staff_id) continue;
-    const row = (summary[payment.staff_id] ||= { hours: 0, paid: 0 });
+    const row = (summary[payment.staff_id] ||= { hours: 0, paid: 0, paidThrough: null });
     row.paid += Number(payment.amount);
+    if (payment.staff_paid_through && (!row.paidThrough || payment.staff_paid_through > row.paidThrough)) {
+      row.paidThrough = payment.staff_paid_through;
+    }
   }
   return summary;
+}
+export async function getStaffPaymentsForStaff(staffId: string): Promise<Expense[]> {
+  if (!supabase)
+    throw Error('Supabase chưa được cấu hình. Kiểm tra NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY trong .env.');
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('*')
+    .eq('staff_id', staffId)
+    .eq('category', 'Tiền nhân sự')
+    .order('expense_date', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+export async function updateStaffPaymentCoverage(id: string, staffPaidThrough: string | null) {
+  if (!supabase)
+    throw Error('Đang ở chế độ xem thử. Hãy kết nối Supabase trong .env.local để lưu dữ liệu.');
+  const { data, error } = await supabase
+    .from('expenses')
+    .update({ staff_paid_through: staffPaidThrough })
+    .eq('id', id)
+    .eq('category', 'Tiền nhân sự')
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Expense;
 }
 export async function getShifts(): Promise<Shift[]> {
   if (!supabase)
